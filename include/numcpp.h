@@ -350,7 +350,7 @@ public:
     // ===== ONES_LIKE ======
     // ======================
 
-    static Matrix ones_like(tuple<int, int> shape)
+    static Matrix ones_like(std::tuple<int, int> shape)
     {
         auto [row, col] = shape;
         return Matrix(row, col) + 1.0;

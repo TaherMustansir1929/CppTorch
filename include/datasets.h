@@ -7,7 +7,7 @@
 
 std::tuple<Matrix, std::vector<int>> spiral_dataset()
 {
-    std::vector<std::vector<double>> fileData = readCSV("data.csv");
+    std::vector<std::vector<double>> fileData = readCSV("spiral_data.csv");
 
     // Pre-allocate a 1D vector to hold the entire dataset continuously
     std::vector<double> flat_data;

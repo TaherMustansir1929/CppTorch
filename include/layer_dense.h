@@ -2,18 +2,16 @@
 
 #include "numcpp.h"
 
-using namespace std;
-
 const double WEIGHT_SCALAR = 0.01;
 
-class LayerDense
+class Layer_Dense
 {
 public:
-    Matrix weights, biases;
-    Matrix output;
+    Matrix weights, biases, inputs, output;
+    Matrix dweights, dinputs, dbiases;
 
 
-    LayerDense(int n_inputs, int n_neurons)
+    Layer_Dense(int n_inputs, int n_neurons)
         : weights(NumCpp::randn({n_inputs, n_neurons}) * WEIGHT_SCALAR), biases(NumCpp::zeroes({1, n_neurons})),
           output(Matrix(1, n_neurons))
     {
@@ -21,6 +19,19 @@ public:
 
     void forward(const Matrix &inputs)
     {
+        // store inputs
+        this->inputs = inputs;
+
         this->output = NumCpp::dot(inputs, this->weights) + this->biases;
+    }
+
+    void backward(const Matrix &dvalues)
+    {
+        // Gradient on parameters
+        this->dweights = NumCpp::dot(this->inputs.T(), dvalues);
+        this->dbiases = NumCpp::sum(dvalues, 0);
+
+        // Gradient on values
+        this->dinputs = NumCpp::dot(dvalues, this->weights.T());
     }
 };

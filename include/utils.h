@@ -6,23 +6,6 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-
-template <typename T>
-int minColSize(vector<vector<T>> arr)
-{
-    int minSize = arr[0].size();
-    for (vector<T> &vec : arr)
-    {
-        if (minSize > vec.size())
-        {
-            minSize = vec.size();
-        }
-    }
-
-    return minSize;
-}
-
 
 double randomValue(double min = -1, double max = 1)
 {
@@ -44,21 +27,21 @@ double randomNormalValue()
 }
 
 
-static vector<vector<double>> readCSV(const string &filename)
+static std::vector<std::vector<double>> readCSV(const std::string &filename)
 {
-    vector<vector<double>> data;
-    ifstream file(RESOURCES_PATH + filename);
+    std::vector<std::vector<double>> data;
+    std::ifstream file(RESOURCES_PATH + filename);
 
-    string line;
+    std::string line;
 
     // Skip header
     getline(file, line);
 
     while (getline(file, line))
     {
-        stringstream ss(line);
-        string value;
-        vector<double> row;
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<double> row;
 
         while (getline(ss, value, ','))
         {

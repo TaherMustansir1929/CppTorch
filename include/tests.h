@@ -21,13 +21,13 @@ public:
 
         // X.display(5);
 
-        LayerDense dense1(2, 3);
+        Layer_Dense dense1(2, 3);
         dense1.forward(X);
 
         Activation_ReLU relu;
         relu.forward(dense1.output);
 
-        LayerDense dense2(dense1.output.cols(), 3);
+        Layer_Dense dense2(dense1.output.cols(), 3);
         dense2.forward(relu.output);
 
         Activation_Softmax softmax;
@@ -41,9 +41,9 @@ public:
         Matrix y_one_hot_encoded = NumCpp::one_hot(y, 3);
         double loss = loss_function.calculate(softmax.output, y_one_hot_encoded);
 
-        cout << "Loss: " << loss << "\n";
+        std::cout << "Loss: " << loss << "\n";
 
-        cout << "Accuracy: " << Loss_CategoricalCrossEntropy::accuracy(softmax.output, y_one_hot_encoded) << "\n";
+        std::cout << "Accuracy: " << Loss_CategoricalCrossEntropy::accuracy(softmax.output, y_one_hot_encoded) << "\n";
     }
 
     static void backwardPass_on_one_Layer()
@@ -93,21 +93,61 @@ public:
             // Print the loss every 20 iterations
             if (iter % 20 == 0)
             {
-                cout << "Iteration: " << iter << ",\tLoss: " << loss << "\n";
+                std::cout << "Iteration: " << iter << ",\tLoss: " << loss << "\n";
             }
 
             // Final loss
             if (iter == 199)
             {
-                cout << "Final Loss: " << loss << "\n";
+                std::cout << "Final Loss: " << loss << "\n";
             }
         }
 
         // Final weights and biases
-        cout << "Final weights:\n";
+        std::cout << "Final weights:\n";
         weights.display();
-        cout << "Final biases:\n";
+        std::cout << "Final biases:\n";
         biases.display();
+    }
+
+    static void full_forward_backward_pass()
+    {
+        auto [X, y] = spiral_dataset();
+        Matrix y_one_hot = NumCpp::one_hot(y, 3);
+
+        Layer_Dense dense1(2, 3);
+        Activation_ReLU activation1;
+        Layer_Dense dense2(3, 3);
+        Activation_Softmax_Loss_CategoricalCrossentropy loss_activation;
+
+        // Forward pass
+        dense1.forward(X);
+        activation1.forward(dense1.output);
+        dense2.forward(activation1.output);
+        double loss = loss_activation.forward(dense2.output, y_one_hot);
+
+        // outputs of forward pass
+        std::cout << "Outputs from forward pass: \n";
+        loss_activation.output.display(5);
+        std::cout << "Loss = " << loss << '\n';
+
+        // calculate accuracy
+        double acc = Loss::accuracy(loss_activation.output, y_one_hot);
+        std::cout << "Accuracy = " << acc << '\n';
+
+        // Backward pass
+        loss_activation.backward(y_one_hot);
+        dense2.backward(loss_activation.dinputs);
+        activation1.backward(dense2.dinputs);
+        dense1.backward(activation1.dinputs);
+
+        // Print gradients
+        std::cout << "\nDense1:\n";
+        dense1.dweights.display();
+        dense1.dbiases.display();
+        std::cout << "\nDense2:\n";
+        dense2.dweights.display();
+        dense2.dbiases.display();
     }
 };
 
