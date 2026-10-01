@@ -1,5 +1,6 @@
 #pragma once
 
+#include "matrix.h"
 #include "numcpp.h"
 
 const double WEIGHT_SCALAR = 0.01;
@@ -9,12 +10,15 @@ class Layer_Dense
 public:
     Matrix weights, biases, inputs, output;
     Matrix dweights, dinputs, dbiases;
+    Matrix weight_momentums, bias_momentums;
 
 
     Layer_Dense(int n_inputs, int n_neurons)
         : weights(NumCpp::randn({n_inputs, n_neurons}) * WEIGHT_SCALAR), biases(NumCpp::zeroes({1, n_neurons})),
           output(Matrix(1, n_neurons))
     {
+        this->weight_momentums = NumCpp::zeroes({n_inputs, n_neurons});
+        this->bias_momentums = NumCpp::zeroes({1, n_neurons});
     }
 
     void forward(const Matrix &inputs)
