@@ -384,4 +384,18 @@ public:
 
         return result;
     }
+
+    // ========================================
+    // ===== MATRIX SQUARE ROOT ===============
+    // ========================================
+
+    static Matrix sqrt(const Matrix &nc_arr)
+    {
+        Matrix result(nc_arr.rows(), nc_arr.cols());
+        for (int i = 0; i < result.size(); i++)
+        {
+            result[i] = std::sqrt(nc_arr[i]);
+        }
+        return result;
+    }
 };

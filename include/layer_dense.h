@@ -11,14 +11,19 @@ public:
     Matrix weights, biases, inputs, output;
     Matrix dweights, dinputs, dbiases;
     Matrix weight_momentums, bias_momentums;
+    Matrix weight_cache, bias_cache;
 
 
     Layer_Dense(int n_inputs, int n_neurons)
         : weights(NumCpp::randn({n_inputs, n_neurons}) * WEIGHT_SCALAR), biases(NumCpp::zeroes({1, n_neurons})),
           output(Matrix(1, n_neurons))
     {
+        // Initialize momentums
         this->weight_momentums = NumCpp::zeroes({n_inputs, n_neurons});
         this->bias_momentums = NumCpp::zeroes({1, n_neurons});
+        // Initialize caches
+        this->weight_cache = NumCpp::zeroes({n_inputs, n_neurons});
+        this->bias_cache = NumCpp::zeroes({1, n_neurons});
     }
 
     void forward(const Matrix &inputs)
