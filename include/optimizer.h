@@ -2,7 +2,9 @@
 
 #include "layer_dense.h"
 #include "numcpp.h"
-class Optimizer_VGD
+
+
+class Optimizer_SGD
 {
 public:
     double learning_rate;
@@ -11,7 +13,7 @@ public:
     double momentum;
     int iteration = 0;
 
-    explicit Optimizer_VGD(double learning_rate = 1, double decay = 0, double momentum = 0)
+    explicit Optimizer_SGD(double learning_rate = 1, double decay = 0, double momentum = 0)
         : learning_rate(learning_rate), decay(decay), momentum(momentum)
     {
     }

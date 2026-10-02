@@ -161,7 +161,7 @@ public:
         Activation_ReLU activation1;
         Layer_Dense dense2(64, 3);
         Activation_Softmax_Loss_CategoricalCrossentropy loss_activation;
-        Optimizer_VGD optimizer(1, 1e-3, 0.9);
+        Optimizer_SGD optimizer(1, 1e-3, 0.9);
 
         for (int i = 1; i <= 10000; i++)
         {
