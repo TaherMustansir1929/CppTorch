@@ -5,6 +5,7 @@
 #include "utils.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <stdexcept>
 #include <tuple>
 #include <vector>
@@ -318,14 +319,14 @@ public:
     // ===== ONE HOT ENCODING =====
     // ============================
 
-    static Matrix one_hot(const std::vector<int> &y, int n_classes)
+    static Matrix one_hot(const Matrix &y, int n_classes)
     {
         // Matrix defaults to 0.0, so we only need to assign the hot indices
         Matrix Y_encoded(y.size(), n_classes);
 
         for (size_t i = 0; i < y.size(); i++)
         {
-            Y_encoded(i, y[i]) = 1.0;
+            Y_encoded(i, static_cast<size_t>(y[i])) = 1.0;
         }
 
         return Y_encoded;
@@ -335,12 +336,12 @@ public:
     // ===== WHERE ======
     // ==================
 
-    static Matrix where(const Matrix &condition, double x, double y)
+    static Matrix where(const Matrix &condition, double ifTrue, double ifFalse)
     {
         Matrix result(condition.rows(), condition.cols());
         for (size_t i = 0; i < condition.size(); i++)
         {
-            result[i] = (condition[i] != 0.0) ? x : y;
+            result[i] = (condition[i] != 0.0) ? ifTrue : ifFalse;
         }
 
         return result;
@@ -395,6 +396,69 @@ public:
         for (int i = 0; i < result.size(); i++)
         {
             result[i] = std::sqrt(nc_arr[i]);
+        }
+        return result;
+    }
+
+    // =====================================
+    // ===== MATRIX ABSOLUTE ===============
+    // =====================================
+
+    static Matrix abs(const Matrix &nc_arr)
+    {
+        Matrix result(nc_arr.rows(), nc_arr.cols());
+        for (int i = 0; i < result.size(); i++)
+        {
+            result[i] = std::abs(nc_arr[i]);
+        }
+        return result;
+    }
+
+    // =============================
+    // ===== TRIGONOMETRY ==========
+    // =============================
+
+    static Matrix sin(const Matrix &nc_arr)
+    {
+        Matrix result(nc_arr.rows(), nc_arr.cols());
+        for (size_t i = 0; i < nc_arr.size(); i++)
+        {
+            result[i] = std::sin(nc_arr[i]);
+        }
+        return result;
+    }
+
+    static Matrix cos(const Matrix &nc_arr)
+    {
+        Matrix result(nc_arr.rows(), nc_arr.cols());
+        for (size_t i = 0; i < nc_arr.size(); i++)
+        {
+            result[i] = std::cos(nc_arr[i]);
+        }
+        return result;
+    }
+
+    // =============================
+    // ===== ARRAY CREATION ========
+    // =============================
+
+    static Matrix linspace(double start, double stop, size_t num)
+    {
+        if (num == 0)
+        {
+            return {}; // returns an empty Matrix(0,0) obj
+        }
+        if (num == 1)
+        {
+            return Matrix(1, 1, {start});
+        }
+
+        // Creates a column vector
+        Matrix result(num, 1);
+        double step = (stop - start) / static_cast<double>(num - 1);
+        for (size_t i = 0; i < num; i++)
+        {
+            result[i] = start + (i * step);
         }
         return result;
     }

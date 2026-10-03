@@ -1,6 +1,7 @@
 #pragma once
 
 #include "activation.h"
+#include "layer_dense.h"
 #include "matrix.h"
 #include "numcpp.h"
 
@@ -25,6 +26,30 @@ public:
         Matrix predictions = NumCpp::argmax(output, 1);
         Matrix y_max = NumCpp::argmax(y, 1);
         return NumCpp::mean(predictions == y_max);
+    }
+
+    static double regularization_loss(Layer_Dense &layer)
+    {
+        double reg_loss = 0;
+
+        if (layer.weight_regularizer_l1 > 0)
+        {
+            reg_loss += layer.weight_regularizer_l1 * NumCpp::sum(NumCpp::abs(layer.weights));
+        }
+        if (layer.weight_regularizer_l2 > 0)
+        {
+            reg_loss += layer.weight_regularizer_l2 * NumCpp::sum((layer.weights ^ 2));
+        }
+        if (layer.bias_regularizer_l1 > 0)
+        {
+            reg_loss += layer.bias_regularizer_l1 * NumCpp::sum(NumCpp::abs(layer.biases));
+        }
+        if (layer.bias_regularizer_l2 > 0)
+        {
+            reg_loss += layer.bias_regularizer_l2 * NumCpp::sum((layer.biases ^ 2));
+        }
+
+        return reg_loss;
     }
 };
 
@@ -65,7 +90,7 @@ public:
     Matrix output, dinputs;
 
 
-    double forward(const Matrix &inputs, const Matrix &y_true)
+    [[nodiscard("data_loss value ignored")]] double forward(const Matrix &inputs, const Matrix &y_true)
     {
         // Output layer's activation function
         this->activation.forward(inputs);
