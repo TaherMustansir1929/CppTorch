@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <tuple>
-#include <vector>
+
 
 class NumCpp
 {
@@ -16,6 +16,21 @@ public:
     // =============================
     // ===== MATRIX ASSIGNMENT =====
     // =============================
+
+    static Matrix zeroes(std::tuple<size_t, size_t> shape)
+    {
+        return Matrix(std::get<0>(shape), std::get<1>(shape));
+    }
+
+    static Matrix ones_like(std::tuple<int, int> shape)
+    {
+        auto [row, col] = shape;
+        return Matrix(row, col) + 1.0;
+    }
+
+    // ========================================
+    // ===== RANDOM: NORMAL DISTRIBUTION ======
+    // ========================================
 
     static Matrix randn(std::tuple<size_t, size_t> shape)
     {
@@ -30,9 +45,51 @@ public:
         return nc_arr;
     }
 
-    static Matrix zeroes(std::tuple<size_t, size_t> shape)
+    // ==========================================
+    // ===== RANDOM: BINOMIAL DISTRIBUTION ======
+    // ==========================================
+
+    static Matrix binomial(int n, double p, std::tuple<size_t, size_t> shape)
     {
-        return Matrix(std::get<0>(shape), std::get<1>(shape));
+        if (n < 0 || p < 0.0 || p > 1.0)
+        {
+            throw std::invalid_argument("n must be >= 0 and p must be between 0.0 and 1.0 inclusive.");
+        }
+
+        auto [rows, cols] = shape;
+        Matrix result(rows, cols);
+
+        for (double &i : result)
+        {
+            i = randomBinomialValue(n, p);
+        }
+
+        return result;
+    }
+
+    // ==============================
+    // ===== LINSPACE MATRIX ========
+    // ==============================
+
+    static Matrix linspace(double start, double stop, size_t num)
+    {
+        if (num == 0)
+        {
+            return {}; // returns an empty Matrix(0,0) obj
+        }
+        if (num == 1)
+        {
+            return Matrix(1, 1, {start});
+        }
+
+        // Creates a column vector
+        Matrix result(num, 1);
+        double step = (stop - start) / static_cast<double>(num - 1);
+        for (size_t i = 0; i < num; i++)
+        {
+            result[i] = start + (i * step);
+        }
+        return result;
     }
 
     // =============================
@@ -347,16 +404,6 @@ public:
         return result;
     }
 
-    // ======================
-    // ===== ONES_LIKE ======
-    // ======================
-
-    static Matrix ones_like(std::tuple<int, int> shape)
-    {
-        auto [row, col] = shape;
-        return Matrix(row, col) + 1.0;
-    }
-
     // ===================================
     // ===== OUTER PRODUCT ===============
     // ===================================
@@ -434,31 +481,6 @@ public:
         for (size_t i = 0; i < nc_arr.size(); i++)
         {
             result[i] = std::cos(nc_arr[i]);
-        }
-        return result;
-    }
-
-    // =============================
-    // ===== ARRAY CREATION ========
-    // =============================
-
-    static Matrix linspace(double start, double stop, size_t num)
-    {
-        if (num == 0)
-        {
-            return {}; // returns an empty Matrix(0,0) obj
-        }
-        if (num == 1)
-        {
-            return Matrix(1, 1, {start});
-        }
-
-        // Creates a column vector
-        Matrix result(num, 1);
-        double step = (stop - start) / static_cast<double>(num - 1);
-        for (size_t i = 0; i < num; i++)
-        {
-            result[i] = start + (i * step);
         }
         return result;
     }

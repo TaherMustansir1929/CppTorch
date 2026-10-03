@@ -7,23 +7,25 @@
 #include <vector>
 
 
-double randomValue(double min = -1, double max = 1)
+inline double randomNormalValue()
 {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> dist(min, max);
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937 gen(rd());
 
-    return dist(gen);
-}
-
-double randomNormalValue()
-{
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
     // Mean of 0.0, Standard Deviation of 1.0
     std::normal_distribution<double> dist(0.0, 1.0);
 
     return dist(gen);
+}
+
+inline double randomBinomialValue(int n, double p)
+{
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937 gen(rd());
+
+    std::binomial_distribution<int> dist(n, p);
+
+    return static_cast<double>(dist(gen));
 }
 
 
