@@ -38,7 +38,7 @@ public:
         }
         if (layer.weight_regularizer_l2 > 0)
         {
-            reg_loss += layer.weight_regularizer_l2 * NumCpp::sum((layer.weights ^ 2));
+            reg_loss += layer.weight_regularizer_l2 * NumCpp::sum(layer.weights.sq());
         }
         if (layer.bias_regularizer_l1 > 0)
         {
@@ -46,7 +46,7 @@ public:
         }
         if (layer.bias_regularizer_l2 > 0)
         {
-            reg_loss += layer.bias_regularizer_l2 * NumCpp::sum((layer.biases ^ 2));
+            reg_loss += layer.bias_regularizer_l2 * NumCpp::sum(layer.biases.sq());
         }
 
         return reg_loss;

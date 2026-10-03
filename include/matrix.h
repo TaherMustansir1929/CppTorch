@@ -15,6 +15,74 @@ private:
     size_t m_cols;
     std::vector<double> m_data; // Flat, fixed-size data
 
+    // ==========================================
+    // ===== INTERNAL BROADCASTING HELPERS ======
+    // ==========================================
+
+    template <typename Op>
+    static Matrix broadcast_op(const Matrix &A, const Matrix &B, Op op)
+    {
+        if ((A.m_rows != B.m_rows && A.m_rows != 1 && B.m_rows != 1) ||
+            (A.m_cols != B.m_cols && A.m_cols != 1 && B.m_cols != 1))
+        {
+            throw std::invalid_argument("Shapes invalid for broadcasting.");
+        }
+
+        size_t out_rows = std::max(A.m_rows, B.m_rows);
+        size_t out_cols = std::max(A.m_cols, B.m_cols);
+
+        Matrix result(out_rows, out_cols);
+
+        // Virtual strides map broadcasted dimensions (step 0) or matched dimensions (step 1)
+        size_t step_rA = (A.m_rows == 1) ? 0 : 1;
+        size_t step_cA = (A.m_cols == 1) ? 0 : 1;
+        size_t step_rB = (B.m_rows == 1) ? 0 : 1;
+        size_t step_cB = (B.m_cols == 1) ? 0 : 1;
+
+        size_t idx = 0;
+        for (size_t i = 0; i < out_rows; ++i)
+        {
+            size_t row_offset_A = (i * step_rA) * A.m_cols;
+            size_t row_offset_B = (i * step_rB) * B.m_cols;
+
+            for (size_t j = 0; j < out_cols; ++j)
+            {
+                size_t col_A = j * step_cA;
+                size_t col_B = j * step_cB;
+
+                result.m_data[idx++] = op(A.m_data[row_offset_A + col_A], B.m_data[row_offset_B + col_B]);
+            }
+        }
+        return result;
+    }
+
+    template <typename Op>
+    Matrix &broadcast_op_assign(const Matrix &B, Op op)
+    {
+        if ((m_rows != B.m_rows && B.m_rows != 1) || (m_cols != B.m_cols && B.m_cols != 1))
+        {
+            throw std::invalid_argument("In-place assignment cannot change matrix dimensions.");
+        }
+
+        size_t step_rB = (B.m_rows == 1) ? 0 : 1;
+        size_t step_cB = (B.m_cols == 1) ? 0 : 1;
+
+        size_t idx = 0;
+        for (size_t i = 0; i < m_rows; ++i)
+        {
+            size_t row_offset_B = (i * step_rB) * B.m_cols;
+
+            for (size_t j = 0; j < m_cols; ++j)
+            {
+                size_t col_B = j * step_cB;
+
+                m_data[idx] = op(m_data[idx], B.m_data[row_offset_B + col_B]);
+                idx++;
+            }
+        }
+        return *this;
+    }
+
 public:
     // ==========================================
     // ===== CONSTRUCTORS & INITIALIZATIONS =====
@@ -139,6 +207,16 @@ public:
         return transposed;
     }
 
+    [[nodiscard]] Matrix sq() const
+    {
+        Matrix result(m_rows, m_cols);
+        for (double i : result)
+        {
+            i *= i;
+        }
+        return result;
+    }
+
     void display(int truncateX = -1, int truncateY = -1) const
     {
         size_t trX = (truncateX == -1) ? m_rows : (size_t)truncateX;
@@ -158,106 +236,33 @@ public:
         std::cout << "\n]\n";
     }
 
-    // =======================================
-    // ============ BROADCASTING  ============
-    // =======================================
-
-    static std::tuple<Matrix, Matrix> broadcast(const Matrix &A, const Matrix &B)
-    {
-        if (A.rows() == B.rows() && A.cols() == B.cols())
-        {
-            return {A, B};
-        }
-
-        if ((A.rows() != B.rows() && A.rows() != 1 && B.rows() != 1) ||
-            (A.cols() != B.cols() && A.cols() != 1 && B.cols() != 1))
-        {
-            throw std::invalid_argument("Shapes invalid for broadcasting.");
-        }
-
-        size_t out_rows = std::max(A.rows(), B.rows());
-        size_t out_cols = std::max(A.cols(), B.cols());
-
-        auto expand = [&](const Matrix &X) -> Matrix {
-            if (X.rows() == out_rows && X.cols() == out_cols)
-            {
-                return X;
-            }
-
-            // Generate a NEW matrix for the broadcasted shape
-            Matrix result(out_rows, out_cols);
-            for (size_t i = 0; i < out_rows; ++i)
-            {
-                for (size_t j = 0; j < out_cols; ++j)
-                {
-                    size_t srcRow = (X.rows() == 1) ? 0 : i;
-                    size_t srcCol = (X.cols() == 1) ? 0 : j;
-                    result(i, j) = X(srcRow, srcCol);
-                }
-            }
-            return result;
-        };
-
-        return {expand(A), expand(B)};
-    }
-
     // ==========================================
     // ===== ARITHMETIC: MATRIX-BY-MATRIX =======
     // ==========================================
 
     Matrix operator+(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = A[i] + B[i];
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return a + b; });
     }
 
     Matrix operator-(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = A[i] - B[i];
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return a - b; });
     }
 
     Matrix operator*(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = A[i] * B[i];
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return a * b; });
     }
 
     Matrix operator/(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = A[i] / B[i];
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return a / b; });
     }
 
     Matrix operator%(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = std::fmod(A[i], B[i]);
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return std::fmod(a, b); });
     }
 
     // ==========================================
@@ -363,68 +368,32 @@ public:
 
     Matrix operator==(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = (A[i] == B[i]) ? 1.0 : 0.0;
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return (a == b) ? 1.0 : 0.0; });
     }
 
     Matrix operator!=(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = (A[i] != B[i]) ? 1.0 : 0.0;
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return (a != b) ? 1.0 : 0.0; });
     }
 
     Matrix operator<(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = (A[i] < B[i]) ? 1.0 : 0.0;
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return (a < b) ? 1.0 : 0.0; });
     }
 
     Matrix operator>(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = (A[i] > B[i]) ? 1.0 : 0.0;
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return (a > b) ? 1.0 : 0.0; });
     }
 
     Matrix operator<=(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = (A[i] <= B[i]) ? 1.0 : 0.0;
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return (a <= b) ? 1.0 : 0.0; });
     }
 
     Matrix operator>=(const Matrix &matB) const
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (size_t i = 0; i < A.size(); i++)
-        {
-            result[i] = (A[i] >= B[i]) ? 1.0 : 0.0;
-        }
-        return result;
+        return broadcast_op(*this, matB, [](double a, double b) { return (a >= b) ? 1.0 : 0.0; });
     }
 
     // ==========================================
@@ -528,72 +497,27 @@ public:
 
     Matrix &operator+=(const Matrix &matB)
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        if (A.rows() != m_rows || A.cols() != m_cols)
-        {
-            throw std::invalid_argument("In-place assignment cannot change matrix dimensions.");
-        }
-        for (size_t i = 0; i < m_data.size(); ++i)
-        {
-            m_data[i] += B[i];
-        }
-        return *this;
+        return broadcast_op_assign(matB, [](double a, double b) { return a + b; });
     }
 
     Matrix &operator-=(const Matrix &matB)
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        if (A.rows() != m_rows || A.cols() != m_cols)
-        {
-            throw std::invalid_argument("In-place assignment cannot change matrix dimensions.");
-        }
-        for (size_t i = 0; i < m_data.size(); ++i)
-        {
-            m_data[i] -= B[i];
-        }
-        return *this;
+        return broadcast_op_assign(matB, [](double a, double b) { return a - b; });
     }
 
     Matrix &operator*=(const Matrix &matB)
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        if (A.rows() != m_rows || A.cols() != m_cols)
-        {
-            throw std::invalid_argument("In-place assignment cannot change matrix dimensions.");
-        }
-        for (size_t i = 0; i < m_data.size(); ++i)
-        {
-            m_data[i] *= B[i];
-        }
-        return *this;
+        return broadcast_op_assign(matB, [](double a, double b) { return a * b; });
     }
 
     Matrix &operator/=(const Matrix &matB)
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        if (A.rows() != m_rows || A.cols() != m_cols)
-        {
-            throw std::invalid_argument("In-place assignment cannot change matrix dimensions.");
-        }
-        for (size_t i = 0; i < m_data.size(); ++i)
-        {
-            m_data[i] /= B[i];
-        }
-        return *this;
+        return broadcast_op_assign(matB, [](double a, double b) { return a / b; });
     }
 
     Matrix &operator%=(const Matrix &matB)
     {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        if (A.rows() != m_rows || A.cols() != m_cols)
-        {
-            throw std::invalid_argument("In-place assignment cannot change matrix dimensions.");
-        }
-        for (size_t i = 0; i < m_data.size(); ++i)
-        {
-            m_data[i] = std::fmod(m_data[i], B[i]);
-        }
-        return *this;
+        return broadcast_op_assign(matB, [](double a, double b) { return std::fmod(a, b); });
     }
 
     // ==========================================
@@ -643,51 +567,5 @@ public:
             i = std::fmod(i, scalar);
         }
         return *this;
-    }
-
-    // ==========================================
-    // ===== BITWISE: MATRIX-BY-MATRIX ==========
-    // ==========================================
-
-    // use XOR as power operator
-    Matrix operator^(const Matrix &matB) const
-    {
-        auto [A, B] = Matrix::broadcast(*this, matB);
-        Matrix result(A.rows(), A.cols());
-        for (int i = 0; i < result.size(); i++)
-        {
-            result[i] = std::pow(A[i], B[i]);
-        }
-        return result;
-    }
-
-    // ==========================================
-    // ===== BITWISE: MATRIX-BY-SCALAR ==========
-    // ==========================================
-
-    // use XOR as power operator
-    Matrix operator^(double exp)
-    {
-        Matrix result(m_rows, m_cols);
-        for (int i = 0; i < result.size(); i++)
-        {
-            result[i] = std::pow(m_data[i], exp);
-        }
-        return result;
-    }
-
-    // ==========================================
-    // ===== BITWISE: SCALAR-BY-MATRIX ==========
-    // ==========================================
-
-    // use XOR as power operator
-    friend Matrix operator^(double x, const Matrix &matA)
-    {
-        Matrix result(matA.rows(), matA.cols());
-        for (int i = 0; i < result.size(); i++)
-        {
-            result[i] = std::pow(x, matA[i]);
-        }
-        return result;
     }
 };

@@ -72,7 +72,7 @@ public:
             double dL_dy = 2 * y;
 
             // Gradient of y with respect to a (creates a matrix of 1s matching 'a')
-            Matrix dy_da = NumCpp::ones_like(a.shape());
+            Matrix dy_da = NumCpp::ones(a.shape());
 
             // Gradient of loss with respect to a
             Matrix dL_da = dL_dy * dy_da;

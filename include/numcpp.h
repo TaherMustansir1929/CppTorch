@@ -22,7 +22,7 @@ public:
         return Matrix(std::get<0>(shape), std::get<1>(shape));
     }
 
-    static Matrix ones_like(std::tuple<int, int> shape)
+    static Matrix ones(std::tuple<int, int> shape)
     {
         auto [row, col] = shape;
         return Matrix(row, col) + 1.0;
@@ -111,18 +111,25 @@ public:
         size_t colSize = B.cols();
         size_t innerSize = A.cols();
 
+        // result constructor auto-initializes all elements to 0.0
         Matrix result(rowSize, colSize);
 
+        // Optimized i-k-j cache-friendly loop sequencing
         for (size_t i = 0; i < rowSize; i++)
         {
-            for (size_t j = 0; j < colSize; j++)
+            size_t offset_A = i * innerSize;
+            size_t offset_result = i * colSize;
+
+            for (size_t k = 0; k < innerSize; k++)
             {
-                double elem = 0;
-                for (size_t k = 0; k < innerSize; k++)
+                double a_ik = A[offset_A + k];
+                size_t offset_B = k * colSize;
+
+                for (size_t j = 0; j < colSize; j++)
                 {
-                    elem += A(i, k) * B(k, j);
+                    // Sequential row-major memory access natively avoids cache misses
+                    result[offset_result + j] += a_ik * B[offset_B + j];
                 }
-                result(i, j) = elem;
             }
         }
 

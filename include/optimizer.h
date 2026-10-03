@@ -66,8 +66,8 @@ public:
     void update_params(Layer_Dense &layer) const
     {
         // Update cache with squared current gradients
-        layer.weight_cache += (layer.dweights ^ 2);
-        layer.bias_cache += (layer.dbiases ^ 2);
+        layer.weight_cache += layer.dweights.sq();
+        layer.bias_cache += layer.dbiases.sq();
 
         // Vanilla SGD parameter update + normalization with square rooted cache
         layer.weights +=
@@ -107,11 +107,8 @@ public:
 
     void update_params(Layer_Dense &layer) const
     {
-        // Fix 1: Added parentheses around (layer.dweights ^ 2) to bypass C++ precedence
-        layer.weight_cache = this->rho * layer.weight_cache + (1 - this->rho) * (layer.dweights ^ 2);
-
-        // Fix 2: Changed += to = and added parentheses
-        layer.bias_cache = this->rho * layer.bias_cache + (1 - this->rho) * (layer.dbiases ^ 2);
+        layer.weight_cache = this->rho * layer.weight_cache + (1 - this->rho) * layer.dweights.sq();
+        layer.bias_cache = this->rho * layer.bias_cache + (1 - this->rho) * layer.dbiases.sq();
 
         // Vanilla SGD parameter update + normalization with square rooted cache
         layer.weights +=
@@ -168,8 +165,8 @@ public:
         Matrix bias_momentums_corrected = layer.bias_momentums / (1 - std::pow(this->beta_1, (this->iteration + 1)));
 
         // Update cache with squared current gradients
-        layer.weight_cache = this->beta_2 * layer.weight_cache + (1 - this->beta_2) * (layer.dweights ^ 2);
-        layer.bias_cache = this->beta_2 * layer.bias_cache + (1 - this->beta_2) * (layer.dbiases ^ 2);
+        layer.weight_cache = this->beta_2 * layer.weight_cache + (1 - this->beta_2) * layer.dweights.sq();
+        layer.bias_cache = this->beta_2 * layer.bias_cache + (1 - this->beta_2) * layer.dbiases.sq();
 
         // Get corrected caches
         Matrix weight_cache_corrected = layer.weight_cache / (1 - std::pow(this->beta_2, (this->iteration + 1)));
