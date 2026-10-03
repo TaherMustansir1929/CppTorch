@@ -209,8 +209,8 @@ public:
 
     [[nodiscard]] Matrix sq() const
     {
-        Matrix result(m_rows, m_cols);
-        for (double i : result)
+        Matrix result = *this;
+        for (double &i : result)
         {
             i *= i;
         }

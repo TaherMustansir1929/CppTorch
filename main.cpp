@@ -9,5 +9,9 @@ int main()
     // Tests::full_pass_with_optimizer_adagrad();
     // Tests::full_pass_with_optimizer_rmsprop();
     // Tests::full_pass_with_regularization();
-    Tests::full_pass_with_dropout_layer();
+    // Tests::full_pass_with_dropout_layer();
+    // Tests::full_pass_with_mean_squared_error();
+    // Tests::california_housing_dataset_test();
+    // Tests::train_california_housing();
+    Tests::california_housing_with_cpptorch();
 }

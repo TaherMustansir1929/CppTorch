@@ -50,3 +50,21 @@ public:
 
     // backward pass combined with categorical cross entropy loss class <loss.h> file
 };
+
+class Activation_Linear
+{
+public:
+    Matrix output, inputs;
+    Matrix dinputs;
+
+    void forward(const Matrix &inputs)
+    {
+        this->inputs = inputs;
+        this->output = inputs;
+    }
+
+    void backward(const Matrix &dvalues)
+    {
+        this->dinputs = dvalues;
+    }
+};

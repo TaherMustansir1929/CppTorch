@@ -14,8 +14,8 @@ public:
         auto [rowB, colB] = shapeB;
 
         msg = "[ShapeInvalidForOperation] Operation: \"" + optr + "\" cannot be performed on A=Matrix(" +
-              std::to_string(rowA) + ", " + std::to_string(colA) + ") & B=Matrix(" + std::to_string(rowA) + ", " +
-              std::to_string(colA) + ")\n";
+              std::to_string(rowA) + ", " + std::to_string(colA) + ") & B=Matrix(" + std::to_string(rowB) + ", " +
+              std::to_string(colB) + ")\n";
     }
 
     [[nodiscard]] const char *what() const noexcept override
