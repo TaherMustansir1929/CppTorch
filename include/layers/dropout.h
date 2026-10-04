@@ -1,7 +1,7 @@
 #pragma once
 
-#include "matrix.h"
-#include "numcpp.h"
+#include "core/matrix.h"
+#include "core/numcpp.h"
 
 
 class Layer_Dropout

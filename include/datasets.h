@@ -1,7 +1,7 @@
 #pragma once
 
-#include "matrix.h"
-#include "numcpp.h"
+#include "core/matrix.h"
+#include "core/numcpp.h"
 
 #include <algorithm>
 #include <cmath>
@@ -342,28 +342,25 @@ public:
         return california_housing(train_ratio, test_ratio, val_ratio, shuffle, seed, one_hot_categorical, filename);
     }
 
-    static auto california_housing_data(
-        double train_ratio = 0.7,
-        double test_ratio = 0.15,
-        double val_ratio = 0.15,
-        bool shuffle = true,
-        unsigned int seed = 42,
-        bool one_hot_categorical = true,
-        const std::string &filename = "housing_data.csv")
+    static auto california_housing_data(double train_ratio = 0.7,
+                                        double test_ratio = 0.15,
+                                        double val_ratio = 0.15,
+                                        bool shuffle = true,
+                                        unsigned int seed = 42,
+                                        bool one_hot_categorical = true,
+                                        const std::string &filename = "housing_data.csv")
     {
         return california_housing(train_ratio, test_ratio, val_ratio, shuffle, seed, one_hot_categorical, filename);
     }
 
-    static auto housing_data(
-        double train_ratio = 0.7,
-        double test_ratio = 0.15,
-        double val_ratio = 0.15,
-        bool shuffle = true,
-        unsigned int seed = 42,
-        bool one_hot_categorical = true,
-        const std::string &filename = "housing_data.csv")
+    static auto housing_data(double train_ratio = 0.7,
+                             double test_ratio = 0.15,
+                             double val_ratio = 0.15,
+                             bool shuffle = true,
+                             unsigned int seed = 42,
+                             bool one_hot_categorical = true,
+                             const std::string &filename = "housing_data.csv")
     {
         return california_housing(train_ratio, test_ratio, val_ratio, shuffle, seed, one_hot_categorical, filename);
     }
 };
-

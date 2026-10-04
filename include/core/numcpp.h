@@ -1,11 +1,13 @@
 #pragma once
 
-#include "exceptions.h"
 #include "matrix.h"
-#include "utils.h"
+#include "utils/exceptions.h"
+#include "utils/utils.h"
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
+#include <set>
 #include <stdexcept>
 #include <tuple>
 
@@ -26,6 +28,17 @@ public:
     {
         auto [row, col] = shape;
         return Matrix(row, col) + 1.0;
+    }
+
+    static Matrix diagflat(const Matrix &nc_arr)
+    {
+        size_t n = nc_arr.size();
+        Matrix result(n, n);
+        for (size_t i = 0; i < n; i++)
+        {
+            result(i, i) = nc_arr[i];
+        }
+        return result;
     }
 
     // ========================================
@@ -383,7 +396,7 @@ public:
     // ===== ONE HOT ENCODING =====
     // ============================
 
-    static Matrix one_hot(const Matrix &y, int n_classes)
+    static Matrix one_hot(const Matrix &y, size_t n_classes)
     {
         // Matrix defaults to 0.0, so we only need to assign the hot indices
         Matrix Y_encoded(y.size(), n_classes);
@@ -490,5 +503,15 @@ public:
             result[i] = std::cos(nc_arr[i]);
         }
         return result;
+    }
+
+    // =============================
+    // ===== UNIQUE_COUNT ==========
+    // =============================
+
+    static size_t unique_count(const Matrix &nc_arr)
+    {
+        std::set<double> unique_vals(nc_arr.begin(), nc_arr.end());
+        return unique_vals.size();
     }
 };

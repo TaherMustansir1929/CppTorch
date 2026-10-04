@@ -1,7 +1,8 @@
 #pragma once
 
-#include "matrix.h"
-#include "numcpp.h"
+#include "core/matrix.h"
+#include "core/numcpp.h"
+
 
 const double WEIGHT_SCALAR = 0.01;
 
@@ -18,8 +19,8 @@ public:
     double bias_regularizer_l2 = 0;
 
 
-    Layer_Dense(int n_inputs,
-                int n_neurons,
+    Layer_Dense(size_t n_inputs,
+                size_t n_neurons,
                 double weight_regularizer_l1 = 0,
                 double weight_regularizer_l2 = 0,
                 double bias_regularizer_l1 = 0,
