@@ -2,54 +2,69 @@
 
 #include "activation.h"
 #include "core/numcpp.h"
-
+#include <omp.h>
 
 class Activation_Softmax : public Activation
 {
 public:
-    void forward(const Matrix &inputs) override
+    void forward(const Matrix &inputs, bool cache_inputs = true) override
     {
-        // Remember input values
-        this->inputs = inputs;
+        if (cache_inputs)
+            this->inputs = inputs;
+        const size_t samples = inputs.rows();
+        const size_t features = inputs.cols();
+        this->output.resize(samples, features);
+#pragma omp parallel for if (samples * features > 16384)
+        for (size_t i = 0; i < samples; ++i)
+        {
+            const size_t offset = i * features;
+            double max_value = inputs[offset];
+            for (size_t j = 1; j < features; ++j)
+                max_value = std::max(max_value, inputs[offset + j]);
 
-        Matrix exp_values = NumCpp::exp(inputs - NumCpp::max(inputs, 1));
-        Matrix probabilities = exp_values / NumCpp::sum(exp_values, 1);
+            double total = 0.0;
+#pragma omp simd reduction(+ : total)
+            for (size_t j = 0; j < features; ++j)
+            {
+                this->output[offset + j] = std::exp(inputs[offset + j] - max_value);
+                total += this->output[offset + j];
+            }
 
-        this->output = probabilities;
+#pragma omp simd
+            for (size_t j = 0; j < features; ++j)
+                this->output[offset + j] /= total;
+        }
     }
 
     void backward(const Matrix &dvalues) override
     {
-        // Create uninitialized array for sample gradients
-        this->dinputs = Matrix(dvalues.rows(), dvalues.cols());
-
         size_t samples = dvalues.rows();
         size_t features = dvalues.cols();
+        this->dinputs.resize(samples, features);
 
-        // Enumerate outputs and gradients for each sample
+        // Mathematical Simplification:
+        // J = diag(s) - s * s.T
+        // dinputs = J * d = s * d - s * (s.T * d)
+        // Element-wise: dinputs_i = s_i * (d_i - sum(s_j * d_j))
+
+#pragma omp parallel for if (samples * features > 16384)
         for (size_t i = 0; i < samples; i++)
         {
-            // Extract single output and single dvalues as column vectors (features x 1)
-            Matrix single_output(features, 1);
-            Matrix single_dvalues(features, 1);
+            double dot_product = 0.0;
+            size_t row_offset = i * features;
+
+// 1. Calculate the scalar dot product of output and dvalues for this sample
+#pragma omp simd reduction(+ : dot_product)
             for (size_t j = 0; j < features; j++)
             {
-                single_output[j] = this->output(i, j);
-                single_dvalues[j] = dvalues(i, j);
+                dot_product += this->output[row_offset + j] * dvalues[row_offset + j];
             }
 
-            // Calculate Jacobian matrix of the output:
-            // J = diagflat(single_output) - dot(single_output, single_output.T)
-            Matrix jacobian_matrix = NumCpp::diagflat(single_output) - NumCpp::dot(single_output, single_output.T());
-
-            // Calculate sample-wise gradient:
-            // sample_dinputs = dot(jacobian_matrix, single_dvalues)
-            Matrix sample_dinputs = NumCpp::dot(jacobian_matrix, single_dvalues);
-
-            // Store into dinputs
+// 2. Apply the simplified Jacobian element-wise
+#pragma omp simd
             for (size_t j = 0; j < features; j++)
             {
-                this->dinputs(i, j) = sample_dinputs[j];
+                this->dinputs[row_offset + j] = this->output[row_offset + j] * (dvalues[row_offset + j] - dot_product);
             }
         }
     }

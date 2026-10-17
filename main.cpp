@@ -40,30 +40,14 @@ int main()
     std::cout << "[3/5] Initializing Regression Model...\n";
     Model model(ModelType::Regression);
 
-    model.add_layer({
-        .n_inputs = X_train.cols(),
-        .n_neurons = 64,
-        .activation_type = ActivationType::ReLU
-    });
+    model.add_layer({.n_inputs = X_train.cols(), .n_neurons = 64, .activation_type = ActivationType::ReLU});
 
-    model.add_layer({
-        .n_inputs = 64,
-        .n_neurons = 32,
-        .activation_type = ActivationType::ReLU
-    });
+    model.add_layer({.n_inputs = 64, .n_neurons = 32, .activation_type = ActivationType::ReLU});
 
-    model.add_layer({
-        .n_inputs = 32,
-        .n_neurons = 1,
-        .activation_type = ActivationType::Linear
-    });
+    model.add_layer({.n_inputs = 32, .n_neurons = 1, .activation_type = ActivationType::Linear});
 
     // Configure Adam optimizer with initial learning rate and decay
-    model.set_optimizer({
-        .optmzr_type = OptimizerType::Adam,
-        .learning_rate = 0.01,
-        .decay = 1e-3
-    });
+    model.set_optimizer({.optmzr_type = OptimizerType::Adam, .learning_rate = 0.01, .decay = 1e-3});
     std::cout << "      Model architecture created with Adam optimizer (lr=0.01, decay=0.001).\n\n";
 
     // 4. Train the Model
@@ -84,10 +68,8 @@ int main()
     // Preview sample predictions against actual values
     std::cout << "Sample Predictions (First 5 Test Houses):\n";
     std::cout << "----------------------------------------------------------------------\n";
-    std::cout << std::left << std::setw(10) << "Sample"
-              << std::setw(20) << "Predicted Price"
-              << std::setw(20) << "Actual Price"
-              << std::setw(15) << "Absolute Error" << "\n";
+    std::cout << std::left << std::setw(10) << "Sample" << std::setw(20) << "Predicted Price" << std::setw(20)
+              << "Actual Price" << std::setw(15) << "Absolute Error" << "\n";
     std::cout << "----------------------------------------------------------------------\n";
 
     Matrix test_preds = model.predict(X_test);
@@ -97,10 +79,8 @@ int main()
         double actual_price = y_test(i, 0) * target_scale;
         double abs_error = std::abs(pred_price - actual_price);
 
-        std::cout << std::left << std::setw(10) << (i + 1)
-                  << "$" << std::setw(19) << pred_price
-                  << "$" << std::setw(19) << actual_price
-                  << "$" << std::setw(14) << abs_error << "\n";
+        std::cout << std::left << std::setw(10) << (i + 1) << "$" << std::setw(19) << pred_price << "$" << std::setw(19)
+                  << actual_price << "$" << std::setw(14) << abs_error << "\n";
     }
     std::cout << "----------------------------------------------------------------------\n";
 

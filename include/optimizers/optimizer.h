@@ -2,7 +2,6 @@
 
 #include "layers/dense.h"
 
-
 class Optimizer
 {
 protected:
@@ -16,13 +15,17 @@ protected:
     double beta_2 = 0.999;
     int iteration = 0;
 
+    // Threshold to prevent thread-spawn overhead on small layers
+    static constexpr size_t OMP_THRESHOLD = 8192;
+
 public:
     virtual ~Optimizer() = default;
 
+    // Enable zero-allocation relocations via explicit noexcept defaults
     Optimizer(const Optimizer &) = default;
-    Optimizer(Optimizer &&) = delete;
+    Optimizer(Optimizer &&) noexcept = default;
     Optimizer &operator=(const Optimizer &) = default;
-    Optimizer &operator=(Optimizer &&) = delete;
+    Optimizer &operator=(Optimizer &&) noexcept = default;
 
     explicit Optimizer(double learning_rate = 0.01,
                        double decay = 0,
@@ -41,9 +44,9 @@ public:
         return current_learning_rate;
     }
 
-    void pre_update_params()
+    virtual void pre_update_params()
     {
-        this->current_learning_rate = this->learning_rate * (1 / (1 + (this->decay * this->iteration)));
+        this->current_learning_rate = this->learning_rate * (1.0 / (1.0 + (this->decay * this->iteration)));
     }
 
     void post_update_params()

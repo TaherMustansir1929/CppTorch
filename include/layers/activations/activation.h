@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/matrix.h"
-
+#include <utility>
 
 class Activation
 {
@@ -9,12 +9,13 @@ public:
     Matrix output, inputs;
     Matrix dinputs;
 
-
     virtual ~Activation() = default;
+
+    // Enable Rule of Five Move Semantics for zero-allocation transfers
     Activation(const Activation &) = default;
-    Activation(Activation &&) = delete;
+    Activation(Activation &&) noexcept = default;
     Activation &operator=(const Activation &) = default;
-    Activation &operator=(Activation &&) = delete;
+    Activation &operator=(Activation &&) noexcept = default;
 
     Activation() = default;
     Activation(Matrix output, Matrix inputs, Matrix dinputs)
@@ -22,6 +23,6 @@ public:
     {
     }
 
-    virtual void forward(const Matrix &inputs) = 0;
+    virtual void forward(const Matrix &inputs, bool cache_inputs = true) = 0;
     virtual void backward(const Matrix &dvalues) = 0;
 };

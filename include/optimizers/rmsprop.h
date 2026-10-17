@@ -1,7 +1,8 @@
 #pragma once
 
 #include "optimizer.h"
-
+#include <cmath>
+#include <omp.h>
 
 class Optimizer_RMSprop : public Optimizer
 {
@@ -13,14 +14,23 @@ public:
 
     void update_params(Layer_Dense &layer) const override
     {
-        layer.weight_cache = this->rho * layer.weight_cache + (1 - this->rho) * layer.dweights.sq();
-        layer.bias_cache = this->rho * layer.bias_cache + (1 - this->rho) * layer.dbiases.sq();
+        double inv_rho = 1.0 - this->rho;
 
-        // Vanilla SGD parameter update + normalization with square rooted cache
-        layer.weights +=
-            -1 * this->current_learning_rate * layer.dweights / (NumCpp::sqrt(layer.weight_cache) + this->epsilon);
+#pragma omp parallel for simd if (layer.weights.size() > OMP_THRESHOLD)
+        for (size_t i = 0; i < layer.weights.size(); ++i)
+        {
+            layer.weight_cache[i] =
+                this->rho * layer.weight_cache[i] + inv_rho * (layer.dweights[i] * layer.dweights[i]);
+            layer.weights[i] -=
+                (this->current_learning_rate * layer.dweights[i]) / (std::sqrt(layer.weight_cache[i]) + this->epsilon);
+        }
 
-        layer.biases +=
-            -1 * this->current_learning_rate * layer.dbiases / (NumCpp::sqrt(layer.bias_cache) + this->epsilon);
+#pragma omp parallel for simd if (layer.biases.size() > OMP_THRESHOLD)
+        for (size_t i = 0; i < layer.biases.size(); ++i)
+        {
+            layer.bias_cache[i] = this->rho * layer.bias_cache[i] + inv_rho * (layer.dbiases[i] * layer.dbiases[i]);
+            layer.biases[i] -=
+                (this->current_learning_rate * layer.dbiases[i]) / (std::sqrt(layer.bias_cache[i]) + this->epsilon);
+        }
     }
 };

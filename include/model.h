@@ -24,7 +24,7 @@
 #include "optimizers/optimizer.h"
 #include "optimizers/rmsprop.h"
 #include "optimizers/sgd.h"
-
+#include <omp.h>
 
 enum class ActivationType : std::uint8_t
 {
@@ -68,7 +68,6 @@ struct HyperParameters_Optimizer
     double beta_2 = 0.999;
 };
 
-
 class Layer_Wrapper
 {
     Layer_Dense m_dense;
@@ -110,9 +109,9 @@ public:
     [[nodiscard]] const Matrix &output(bool is_training = true) const
     {
         if (m_has_dropout && is_training)
-        {
             return m_dropout.output;
-        }
+        if (m_activation_type == ActivationType::Linear)
+            return m_dense.output;
         return m_activation->output;
     }
 
@@ -120,22 +119,18 @@ public:
     {
         return m_dense.dinputs;
     }
-
     [[nodiscard]] Layer_Dense &dense()
     {
         return m_dense;
     }
-
     [[nodiscard]] const Layer_Dense &dense() const
     {
         return m_dense;
     }
-
     [[nodiscard]] ActivationType activation_type() const
     {
         return m_activation_type;
     }
-
     [[nodiscard]] bool has_dropout() const
     {
         return m_has_dropout;
@@ -144,11 +139,11 @@ public:
     void forward(const Matrix &inputs, bool is_training = true)
     {
         m_dense.forward(inputs);
-        m_activation->forward(m_dense.output);
+        if (m_activation_type != ActivationType::Linear)
+            m_activation->forward(m_dense.output, false);
         if (m_has_dropout && is_training)
-        {
-            m_dropout.forward(m_activation->output);
-        }
+            m_dropout.forward(m_activation_type == ActivationType::Linear ? m_dense.output : m_activation->output,
+                              false);
     }
 
     void backward(const Matrix &dvalues)
@@ -156,23 +151,29 @@ public:
         if (m_has_dropout)
         {
             m_dropout.backward(dvalues);
-            m_activation->backward(m_dropout.dinputs);
+            if (m_activation_type == ActivationType::Linear)
+                m_dense.backward(m_dropout.dinputs);
+            else
+            {
+                m_activation->backward(m_dropout.dinputs);
+                m_dense.backward(m_activation->dinputs);
+            }
         }
+        else if (m_activation_type == ActivationType::Linear)
+            m_dense.backward(dvalues);
         else
         {
             m_activation->backward(dvalues);
+            m_dense.backward(m_activation->dinputs);
         }
-        m_dense.backward(m_activation->dinputs);
     }
 };
-
 
 enum class ModelType : std::uint8_t
 {
     Classification,
     Regression
 };
-
 
 class Model
 {
@@ -224,9 +225,7 @@ public:
     void set_loss(std::unique_ptr<Loss> loss)
     {
         if (!loss)
-        {
             throw std::invalid_argument("Cannot assign a null loss function.");
-        }
         m_loss = std::move(loss);
     }
 
@@ -234,7 +233,6 @@ public:
     {
         return *m_loss;
     }
-
     void add_layer(HyperParameters_Layer_Wrapper params)
     {
         m_seq_layers.emplace_back(params);
@@ -264,22 +262,15 @@ public:
         }
     }
 
-    /**
-     * @brief Performs forward inference through all layers in evaluation mode (dropout disabled).
-     * @param X Input feature matrix of shape (samples, features).
-     * @return Model output matrix (probabilities for classification, continuous predictions for regression).
-     */
     [[nodiscard]] Matrix predict(const Matrix &X)
     {
         if (m_seq_layers.empty())
-        {
             throw std::runtime_error("Model has no layers added.");
-        }
         if (X.cols() != m_seq_layers[0].dense().weights.rows())
         {
             throw std::invalid_argument("Input feature dimension (" + std::to_string(X.cols()) +
-                                       ") does not match model input dimension (" +
-                                       std::to_string(m_seq_layers[0].dense().weights.rows()) + ").");
+                                        ") does not match model input dimension (" +
+                                        std::to_string(m_seq_layers[0].dense().weights.rows()) + ").");
         }
 
         m_seq_layers[0].forward(X, false);
@@ -290,26 +281,19 @@ public:
         return m_seq_layers.back().output(false);
     }
 
-    /**
-     * @brief Generates discrete class predictions for classification models.
-     * @param X Input feature matrix of shape (samples, features).
-     * @return Column vector of predicted class indices (samples, 1).
-     */
     [[nodiscard]] Matrix predict_classes(const Matrix &X)
     {
         Matrix output = predict(X);
         if (m_model_type == ModelType::Classification)
-        {
             return NumCpp::argmax(output, 1);
-        }
         return output;
     }
 
     struct EvaluationResult
     {
         double loss = 0.0;
-        double accuracy = 0.0; // Accuracy for classification
-        double rmse = 0.0;     // Root Mean Squared Error for regression
+        double accuracy = 0.0;
+        double rmse = 0.0;
 
         void display(ModelType type) const
         {
@@ -324,23 +308,12 @@ public:
         }
     };
 
-    /**
-     * @brief Evaluates model performance on a test/validation dataset.
-     * @param X Input features matrix.
-     * @param y Ground truth labels or targets.
-     * @param verbose If true, prints the formatted evaluation summary to standard output.
-     * @return EvaluationResult containing calculated loss, accuracy, and RMSE.
-     */
     [[nodiscard]] EvaluationResult evaluate(const Matrix &X, const Matrix &y, bool verbose = true)
     {
         if (m_seq_layers.empty())
-        {
             throw std::runtime_error("Model has no layers added.");
-        }
         if (!m_loss)
-        {
             throw std::runtime_error("Loss function has not been initialized.");
-        }
 
         Matrix y_pred = predict(X);
         Matrix y_target = format_target(y);
@@ -351,9 +324,8 @@ public:
 
         EvaluationResult result{eval_loss, eval_acc, eval_rmse};
         if (verbose)
-        {
             result.display(m_model_type);
-        }
+
         return result;
     }
 
@@ -372,17 +344,13 @@ public:
         {
             printf("Loss: %.4f - Acc: %.3f", train_loss, train_acc);
             if (has_val)
-            {
                 printf(" - Val Loss: %.4f - Val Acc: %.3f", val_loss, val_acc);
-            }
         }
         else
         {
             printf("Loss (MSE): %.4f", train_loss);
             if (has_val)
-            {
                 printf(" - Val Loss (MSE): %.4f", val_loss);
-            }
         }
         printf(" - lr: %.6f\n", lr);
     }
@@ -395,36 +363,27 @@ public:
                size_t print_every = 1)
     {
         if (m_seq_layers.empty())
-        {
             throw std::runtime_error("No layers have been added to the model.");
-        }
         if (!m_loss)
-        {
             throw std::runtime_error("Loss function has not been initialized.");
-        }
         if (!m_optimizer)
-        {
             throw std::runtime_error("Optimizer has not been initialized.");
-        }
 
         Matrix y_train_target = format_target(y_train);
-
         bool has_val = (X_val.rows() > 0 && y_val.rows() > 0);
-        Matrix y_val_target;
-        if (has_val)
-        {
-            y_val_target = format_target(y_val);
-        }
+        Matrix y_val_target = has_val ? format_target(y_val) : Matrix();
 
-        // Fast analytical shortcut when output activation is Softmax and loss is Categorical Cross-Entropy
         bool use_fused_softmax_cce = (m_model_type == ModelType::Classification &&
                                       m_seq_layers.back().activation_type() == ActivationType::Softmax);
 
+        size_t final_layer_idx = m_seq_layers.size() - 1;
+        Matrix fused_grad;
+
         for (size_t epoch = 1; epoch <= n_epochs; ++epoch)
         {
-            // 1. FORWARD PASS (training mode)
+            // 1. FORWARD PASS
             m_seq_layers[0].forward(X_train, true);
-            for (size_t i = 1; i < m_seq_layers.size(); ++i)
+            for (size_t i = 1; i <= final_layer_idx; ++i)
             {
                 m_seq_layers[i].forward(m_seq_layers[i - 1].output(true), true);
             }
@@ -433,7 +392,6 @@ public:
             // 2. LOSS CALCULATION
             double train_data_loss = m_loss->calculate(train_output, y_train_target);
 
-            // Accumulate regularization loss (L1 & L2 for weights and biases across all dense layers)
             double train_reg_loss = 0.0;
             for (auto &layer : m_seq_layers)
             {
@@ -441,48 +399,55 @@ public:
             }
             double total_train_loss = train_data_loss + train_reg_loss;
 
-            double train_accuracy = 0.0;
-            if (m_model_type == ModelType::Classification)
-            {
-                train_accuracy = Loss::accuracy(train_output, y_train_target);
-            }
+            double train_accuracy =
+                (m_model_type == ModelType::Classification) ? Loss::accuracy(train_output, y_train_target) : 0.0;
 
             // 3. BACKWARD PASS
             if (use_fused_softmax_cce)
             {
-                // Fused Softmax + Categorical Cross-Entropy gradient: (y_pred - y_true) / N
                 int samples = static_cast<int>(train_output.rows());
+                int cols = static_cast<int>(train_output.cols());
+                double inv_samples = 1.0 / static_cast<double>(samples);
+
                 Matrix y_true_discrete =
                     (y_train_target.cols() > 1) ? NumCpp::argmax(y_train_target, 1) : y_train_target;
-                Matrix dinputs = train_output;
+                fused_grad.resize(samples, cols);
+
+// SIMD mathematical mapping directly scales the fused gradient without intermediate matrices
+#pragma omp parallel for if (train_output.size() > 8192)
                 for (int s = 0; s < samples; ++s)
                 {
                     size_t target_idx = static_cast<size_t>(y_true_discrete[s]);
-                    dinputs(s, target_idx) -= 1.0;
+                    size_t row_offset = s * cols;
+
+#pragma omp simd
+                    for (int j = 0; j < cols; ++j)
+                    {
+                        double val = train_output[row_offset + j];
+                        if (j == target_idx)
+                            val -= 1.0;
+                        fused_grad[row_offset + j] = val * inv_samples;
+                    }
                 }
-                dinputs /= samples;
 
-                // Pass directly into the last dense layer, skipping Softmax Jacobian
-                m_seq_layers.back().dense().backward(dinputs);
+                m_seq_layers.back().dense().backward(fused_grad);
 
-                // Backpropagate through remaining layers in reverse
-                Matrix upstream_grad = m_seq_layers.back().dinputs();
-                for (int i = static_cast<int>(m_seq_layers.size()) - 2; i >= 0; --i)
+                const Matrix *upstream_grad = &m_seq_layers.back().dinputs();
+                for (int i = static_cast<int>(final_layer_idx) - 1; i >= 0; --i)
                 {
-                    m_seq_layers[i].backward(upstream_grad);
-                    upstream_grad = m_seq_layers[i].dinputs();
+                    m_seq_layers[i].backward(*upstream_grad);
+                    upstream_grad = &m_seq_layers[i].dinputs();
                 }
             }
             else
             {
-                // Standard backpropagation
                 m_loss->backward(train_output, y_train_target);
-                Matrix upstream_grad = m_loss->dinputs;
+                const Matrix *upstream_grad = &m_loss->dinputs;
 
-                for (int i = static_cast<int>(m_seq_layers.size()) - 1; i >= 0; --i)
+                for (int i = static_cast<int>(final_layer_idx); i >= 0; --i)
                 {
-                    m_seq_layers[i].backward(upstream_grad);
-                    upstream_grad = m_seq_layers[i].dinputs();
+                    m_seq_layers[i].backward(*upstream_grad);
+                    upstream_grad = &m_seq_layers[i].dinputs();
                 }
             }
 
@@ -494,7 +459,7 @@ public:
             }
             m_optimizer->post_update_params();
 
-            // 5. VALIDATION PASS (evaluation mode, dropout disabled)
+            // 5. VALIDATION PASS
             double val_loss = 0.0;
             double val_accuracy = 0.0;
             if (has_val)

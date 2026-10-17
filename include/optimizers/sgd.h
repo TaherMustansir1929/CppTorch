@@ -1,7 +1,7 @@
 #pragma once
 
 #include "optimizer.h"
-
+#include <omp.h>
 
 class Optimizer_SGD : public Optimizer
 {
@@ -13,13 +13,22 @@ public:
 
     void update_params(Layer_Dense &layer) const override
     {
-        Matrix weight_updates = this->momentum * layer.weight_momentums - this->current_learning_rate * layer.dweights;
-        layer.weight_momentums = weight_updates;
+// Fused SIMD loops prevent intermediate weight_updates allocations
+#pragma omp parallel for simd if (layer.weights.size() > OMP_THRESHOLD)
+        for (size_t i = 0; i < layer.weights.size(); ++i)
+        {
+            double update =
+                this->momentum * layer.weight_momentums[i] - this->current_learning_rate * layer.dweights[i];
+            layer.weight_momentums[i] = update;
+            layer.weights[i] += update;
+        }
 
-        Matrix bias_updates = this->momentum * layer.bias_momentums - this->current_learning_rate * layer.dbiases;
-        layer.bias_momentums = bias_updates;
-
-        layer.weights += weight_updates;
-        layer.biases += bias_updates;
+#pragma omp parallel for simd if (layer.biases.size() > OMP_THRESHOLD)
+        for (size_t i = 0; i < layer.biases.size(); ++i)
+        {
+            double update = this->momentum * layer.bias_momentums[i] - this->current_learning_rate * layer.dbiases[i];
+            layer.bias_momentums[i] = update;
+            layer.biases[i] += update;
+        }
     }
 };
