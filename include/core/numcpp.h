@@ -175,6 +175,26 @@ public:
                     static_cast<int>(colSize));
     }
 
+    static void dot_into(const MatrixView &A, const Matrix &B, Matrix &result)
+    {
+        if (A.cols() != B.rows())
+            throw ShapeInvalidForOperation("dot product",
+                                           {static_cast<int>(A.rows()), static_cast<int>(A.cols())},
+                                           {static_cast<int>(B.rows()), static_cast<int>(B.cols())});
+        result.resize(A.rows(), B.cols());
+        if (A.rows() > INT_MAX || B.cols() > INT_MAX || A.cols() > INT_MAX)
+            throw std::length_error("BLAS matrix dimensions exceed the supported integer range.");
+        if (A.rows() == 0 || B.cols() == 0 || A.cols() == 0)
+        {
+            std::fill(result.begin(), result.end(), 0.0);
+            return;
+        }
+        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                    static_cast<int>(A.rows()), static_cast<int>(B.cols()), static_cast<int>(A.cols()),
+                    1.0, A.data(), static_cast<int>(A.cols()), &B[0], static_cast<int>(B.cols()),
+                    0.0, &result[0], static_cast<int>(B.cols()));
+    }
+
     static Matrix dot(const Matrix &A, const Matrix &B)
     {
         Matrix result;
@@ -215,6 +235,26 @@ public:
                     0.0,
                     &result[0],
                     static_cast<int>(neurons));
+    }
+
+    static void dot_transpose_left_into(const MatrixView &A, const Matrix &B, Matrix &result)
+    {
+        if (A.rows() != B.rows())
+            throw ShapeInvalidForOperation("dot product",
+                                           {static_cast<int>(A.rows()), static_cast<int>(A.cols())},
+                                           {static_cast<int>(B.rows()), static_cast<int>(B.cols())});
+        result.resize(A.cols(), B.cols());
+        if (A.cols() > INT_MAX || B.cols() > INT_MAX || A.rows() > INT_MAX)
+            throw std::length_error("BLAS matrix dimensions exceed the supported integer range.");
+        if (A.cols() == 0 || B.cols() == 0 || A.rows() == 0)
+        {
+            std::fill(result.begin(), result.end(), 0.0);
+            return;
+        }
+        cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans,
+                    static_cast<int>(A.cols()), static_cast<int>(B.cols()), static_cast<int>(A.rows()),
+                    1.0, A.data(), static_cast<int>(A.cols()), &B[0], static_cast<int>(B.cols()),
+                    0.0, &result[0], static_cast<int>(B.cols()));
     }
 
     static Matrix dot_transpose_left(const Matrix &A, const Matrix &B)
@@ -318,6 +358,21 @@ public:
         }
 
         throw std::invalid_argument("axis must be 0 or 1");
+    }
+
+    static void sum_into(const Matrix &A, int axis, Matrix &result)
+    {
+        if (axis != 0)
+            throw std::invalid_argument("sum_into currently supports axis 0 only");
+        result.resize(1, A.cols());
+        std::fill(result.begin(), result.end(), 0.0);
+        for (size_t row = 0; row < A.rows(); ++row)
+        {
+            const size_t offset = row * A.cols();
+#pragma omp simd
+            for (size_t col = 0; col < A.cols(); ++col)
+                result[col] += A[offset + col];
+        }
     }
 
     // =============================

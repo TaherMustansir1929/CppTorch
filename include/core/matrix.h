@@ -9,6 +9,8 @@
 #include <tuple>
 #include <vector>
 
+class MatrixView;
+
 class Matrix
 {
 private:
@@ -203,11 +205,24 @@ public:
     {
         return m_data.size();
     }
+    [[nodiscard]] const double *data() const
+    {
+        return m_data.data();
+    }
+    [[nodiscard]] MatrixView rows_view(size_t first_row, size_t row_count) const;
+    void copy_from(const MatrixView &source);
     void resize(size_t rows, size_t cols)
     {
         m_rows = rows;
         m_cols = cols;
         m_data.resize(rows * cols);
+    }
+    void copy_rows_from(const Matrix &source, size_t first_row, size_t row_count)
+    {
+        if (first_row > source.m_rows || row_count > source.m_rows - first_row)
+            throw std::out_of_range("Row range is outside the source matrix.");
+        resize(row_count, source.m_cols);
+        std::copy_n(source.m_data.begin() + first_row * source.m_cols, row_count * source.m_cols, m_data.begin());
     }
     [[nodiscard]] const std::vector<double> &getFlatData() const
     {
@@ -491,3 +506,34 @@ public:
         return scalar_assign_op(scalar, [](double a, double b) { return std::fmod(a, b); });
     }
 };
+
+class MatrixView
+{
+    const double *m_data = nullptr;
+    size_t m_rows = 0;
+    size_t m_cols = 0;
+
+public:
+    MatrixView() = default;
+    MatrixView(const double *data, size_t rows, size_t cols) : m_data(data), m_rows(rows), m_cols(cols)
+    {
+    }
+
+    [[nodiscard]] const double *data() const { return m_data; }
+    [[nodiscard]] size_t rows() const { return m_rows; }
+    [[nodiscard]] size_t cols() const { return m_cols; }
+    [[nodiscard]] size_t size() const { return m_rows * m_cols; }
+};
+
+inline MatrixView Matrix::rows_view(size_t first_row, size_t row_count) const
+{
+    if (first_row > m_rows || row_count > m_rows - first_row)
+        throw std::out_of_range("Row range is outside the source matrix.");
+    return MatrixView(m_data.data() + first_row * m_cols, row_count, m_cols);
+}
+
+inline void Matrix::copy_from(const MatrixView &source)
+{
+    resize(source.rows(), source.cols());
+    std::copy_n(source.data(), source.size(), m_data.begin());
+}

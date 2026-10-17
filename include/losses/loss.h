@@ -45,9 +45,11 @@ public:
             {
                 if (output[offset + j] > output[offset + predicted])
                     predicted = j;
-                if (y[offset + j] > y[offset + expected])
+                if (y.cols() != 1 && y[offset + j] > y[offset + expected])
                     expected = j;
             }
+            if (y.cols() == 1)
+                expected = static_cast<size_t>(y[i]);
             if (predicted == expected)
             {
                 correct += 1.0;

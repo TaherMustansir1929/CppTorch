@@ -10,6 +10,8 @@ class Layer_Dense
 {
 private:
     static constexpr size_t OMP_THRESHOLD = 8192;
+    const Matrix *m_inputs_view = nullptr;
+    const MatrixView *m_inputs_slice = nullptr;
 
 public:
     Matrix weights, biases, inputs, output;
@@ -21,6 +23,60 @@ public:
     double weight_regularizer_l2 = 0;
     double bias_regularizer_l1 = 0;
     double bias_regularizer_l2 = 0;
+
+private:
+    friend class Layer_Wrapper;
+
+    void forward_impl(const Matrix &inputs, bool cache_inputs)
+    {
+        if (cache_inputs)
+        {
+            this->inputs = inputs;
+            m_inputs_view = nullptr;
+            m_inputs_slice = nullptr;
+        }
+        else
+        {
+            m_inputs_view = &inputs;
+            m_inputs_slice = nullptr;
+        }
+        NumCpp::dot_into(inputs, this->weights, this->output);
+        this->output += this->biases;
+    }
+
+    void forward_impl(const MatrixView &inputs)
+    {
+        m_inputs_view = nullptr;
+        m_inputs_slice = &inputs;
+        NumCpp::dot_into(inputs, this->weights, this->output);
+        this->output += this->biases;
+    }
+
+    void forward_borrowed(const Matrix &inputs)
+    {
+        forward_impl(inputs, false);
+    }
+
+    void forward_borrowed(const MatrixView &inputs)
+    {
+        forward_impl(inputs);
+    }
+
+    void cache_current_inputs()
+    {
+        if (m_inputs_view)
+        {
+            this->inputs = *m_inputs_view;
+            m_inputs_view = nullptr;
+        }
+        else if (m_inputs_slice)
+        {
+            this->inputs.copy_from(*m_inputs_slice);
+            m_inputs_slice = nullptr;
+        }
+    }
+
+public:
 
     Layer_Dense(size_t n_inputs,
                 size_t n_neurons,
@@ -41,22 +97,26 @@ public:
 
     void forward(const Matrix &inputs)
     {
-        this->inputs = inputs;
-        NumCpp::dot_into(inputs, this->weights, this->output);
-        this->output += this->biases;
+        forward_impl(inputs, true);
     }
 
-    void backward(const Matrix &dvalues)
+    void backward(const Matrix &dvalues, bool apply_regularization = true)
     {
-        NumCpp::dot_transpose_left_into(this->inputs, dvalues, this->dweights);
-        this->dbiases = NumCpp::sum(dvalues, 0);
+        if (m_inputs_slice)
+            NumCpp::dot_transpose_left_into(*m_inputs_slice, dvalues, this->dweights);
+        else
+        {
+            const Matrix &cached_inputs = m_inputs_view ? *m_inputs_view : this->inputs;
+            NumCpp::dot_transpose_left_into(cached_inputs, dvalues, this->dweights);
+        }
+        NumCpp::sum_into(dvalues, 0, this->dbiases);
 
         // ==========================================
         // ===== GRADIENTS ON REGULARIZATION ========
         // ==========================================
 
         // Zero-allocation SIMD Penalty Integrations
-        if (this->weight_regularizer_l1 > 0)
+        if (apply_regularization && this->weight_regularizer_l1 > 0)
         {
 #pragma omp parallel for simd if (this->weights.size() > OMP_THRESHOLD)
             for (size_t i = 0; i < this->weights.size(); ++i)
@@ -65,7 +125,7 @@ public:
             }
         }
 
-        if (this->weight_regularizer_l2 > 0)
+        if (apply_regularization && this->weight_regularizer_l2 > 0)
         {
 #pragma omp parallel for simd if (this->weights.size() > OMP_THRESHOLD)
             for (size_t i = 0; i < this->weights.size(); ++i)
@@ -74,7 +134,7 @@ public:
             }
         }
 
-        if (this->bias_regularizer_l1 > 0)
+        if (apply_regularization && this->bias_regularizer_l1 > 0)
         {
 #pragma omp parallel for simd if (this->biases.size() > OMP_THRESHOLD)
             for (size_t i = 0; i < this->biases.size(); ++i)
@@ -83,7 +143,7 @@ public:
             }
         }
 
-        if (this->bias_regularizer_l2 > 0)
+        if (apply_regularization && this->bias_regularizer_l2 > 0)
         {
 #pragma omp parallel for simd if (this->biases.size() > OMP_THRESHOLD)
             for (size_t i = 0; i < this->biases.size(); ++i)

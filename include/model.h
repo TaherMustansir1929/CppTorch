@@ -136,9 +136,13 @@ public:
         return m_has_dropout;
     }
 
-    void forward(const Matrix &inputs, bool is_training = true)
+private:
+    void forward_impl(const Matrix &inputs, bool is_training, bool cache_inputs)
     {
-        m_dense.forward(inputs);
+        if (cache_inputs)
+            m_dense.forward(inputs);
+        else
+            m_dense.forward_borrowed(inputs);
         if (m_activation_type != ActivationType::Linear)
             m_activation->forward(m_dense.output, false);
         if (m_has_dropout && is_training)
@@ -146,25 +150,55 @@ public:
                               false);
     }
 
-    void backward(const Matrix &dvalues)
+public:
+    void forward(const Matrix &inputs, bool is_training = true)
+    {
+        forward_impl(inputs, is_training, true);
+    }
+
+private:
+    friend class Model;
+
+    void forward_borrowed(const Matrix &inputs, bool is_training = true)
+    {
+        forward_impl(inputs, is_training, false);
+    }
+
+    void forward_borrowed(const MatrixView &inputs, bool is_training = true)
+    {
+        m_dense.forward_borrowed(inputs);
+        if (m_activation_type != ActivationType::Linear)
+            m_activation->forward(m_dense.output, false);
+        if (m_has_dropout && is_training)
+            m_dropout.forward(m_activation_type == ActivationType::Linear ? m_dense.output : m_activation->output,
+                              false);
+    }
+
+    void cache_current_inputs()
+    {
+        m_dense.cache_current_inputs();
+    }
+
+public:
+    void backward(const Matrix &dvalues, bool apply_regularization = true)
     {
         if (m_has_dropout)
         {
             m_dropout.backward(dvalues);
             if (m_activation_type == ActivationType::Linear)
-                m_dense.backward(m_dropout.dinputs);
+                m_dense.backward(m_dropout.dinputs, apply_regularization);
             else
             {
                 m_activation->backward(m_dropout.dinputs);
-                m_dense.backward(m_activation->dinputs);
+                m_dense.backward(m_activation->dinputs, apply_regularization);
             }
         }
         else if (m_activation_type == ActivationType::Linear)
-            m_dense.backward(dvalues);
+            m_dense.backward(dvalues, apply_regularization);
         else
         {
             m_activation->backward(dvalues);
-            m_dense.backward(m_activation->dinputs);
+            m_dense.backward(m_activation->dinputs, apply_regularization);
         }
     }
 };
@@ -196,7 +230,8 @@ class Model
 
     [[nodiscard]] Matrix format_target(const Matrix &y) const
     {
-        if (m_model_type == ModelType::Classification && y.cols() == 1)
+        if (m_model_type == ModelType::Classification && y.cols() == 1 &&
+            dynamic_cast<const Loss_CategoricalCrossEntropy *>(m_loss.get()) == nullptr)
         {
             size_t n_classes = m_seq_layers.back().dense().weights.cols();
             return NumCpp::one_hot(y, static_cast<int>(n_classes));
@@ -360,7 +395,9 @@ public:
                size_t n_epochs,
                const Matrix &X_val = Matrix(),
                const Matrix &y_val = Matrix(),
-               size_t print_every = 1)
+               size_t print_every = 1,
+               size_t batch_size = 0,
+               size_t validation_every = 1)
     {
         if (m_seq_layers.empty())
             throw std::runtime_error("No layers have been added to the model.");
@@ -368,6 +405,10 @@ public:
             throw std::runtime_error("Loss function has not been initialized.");
         if (!m_optimizer)
             throw std::runtime_error("Optimizer has not been initialized.");
+        if (X_train.rows() == 0 || X_train.rows() != y_train.rows())
+            throw std::invalid_argument("Training inputs and targets must have the same non-zero row count.");
+        if (print_every == 0 || validation_every == 0)
+            throw std::invalid_argument("Metric intervals must be greater than zero.");
 
         Matrix y_train_target = format_target(y_train);
         bool has_val = (X_val.rows() > 0 && y_val.rows() > 0);
@@ -378,100 +419,135 @@ public:
 
         size_t final_layer_idx = m_seq_layers.size() - 1;
         Matrix fused_grad;
+        MatrixView X_batch_view;
+        Matrix y_batch;
+        const size_t effective_batch_size = batch_size == 0 ? X_train.rows() : std::min(batch_size, X_train.rows());
+        const bool use_batches = effective_batch_size < X_train.rows();
+        double val_loss = 0.0;
+        double val_accuracy = 0.0;
 
         for (size_t epoch = 1; epoch <= n_epochs; ++epoch)
         {
-            // 1. FORWARD PASS
-            m_seq_layers[0].forward(X_train, true);
-            for (size_t i = 1; i <= final_layer_idx; ++i)
+            const bool should_report = epoch % print_every == 0 || epoch == 1 || epoch == n_epochs;
+            double weighted_train_loss = 0.0;
+            double weighted_train_accuracy = 0.0;
+
+            for (size_t batch_begin = 0; batch_begin < X_train.rows(); batch_begin += effective_batch_size)
             {
-                m_seq_layers[i].forward(m_seq_layers[i - 1].output(true), true);
-            }
-            const Matrix &train_output = m_seq_layers.back().output(true);
+                const size_t batch_rows = std::min(effective_batch_size, X_train.rows() - batch_begin);
+                const Matrix *batch_targets = &y_train_target;
+                if (use_batches)
+                {
+                    X_batch_view = X_train.rows_view(batch_begin, batch_rows);
+                    y_batch.copy_rows_from(y_train_target, batch_begin, batch_rows);
+                    batch_targets = &y_batch;
+                }
 
-            // 2. LOSS CALCULATION
-            double train_data_loss = m_loss->calculate(train_output, y_train_target);
+                // 1. FORWARD PASS
+                if (use_batches)
+                    m_seq_layers[0].forward_borrowed(X_batch_view, true);
+                else
+                    m_seq_layers[0].forward_borrowed(X_train, true);
+                for (size_t i = 1; i <= final_layer_idx; ++i)
+                    m_seq_layers[i].forward_borrowed(m_seq_layers[i - 1].output(true), true);
+                const Matrix &train_output = m_seq_layers.back().output(true);
 
-            double train_reg_loss = 0.0;
-            for (auto &layer : m_seq_layers)
-            {
-                train_reg_loss += Loss::regularization_loss(layer.dense());
-            }
-            double total_train_loss = train_data_loss + train_reg_loss;
+                if (should_report)
+                {
+                    const double batch_loss = m_loss->calculate(train_output, *batch_targets);
+                    const double batch_accuracy = m_model_type == ModelType::Classification
+                                                      ? Loss::accuracy(train_output, *batch_targets)
+                                                      : 0.0;
+                    weighted_train_loss += batch_loss * static_cast<double>(batch_rows);
+                    weighted_train_accuracy += batch_accuracy * static_cast<double>(batch_rows);
 
-            double train_accuracy =
-                (m_model_type == ModelType::Classification) ? Loss::accuracy(train_output, y_train_target) : 0.0;
+                }
 
-            // 3. BACKWARD PASS
-            if (use_fused_softmax_cce)
-            {
-                int samples = static_cast<int>(train_output.rows());
-                int cols = static_cast<int>(train_output.cols());
-                double inv_samples = 1.0 / static_cast<double>(samples);
-
-                Matrix y_true_discrete =
-                    (y_train_target.cols() > 1) ? NumCpp::argmax(y_train_target, 1) : y_train_target;
-                fused_grad.resize(samples, cols);
+                // 2. BACKWARD PASS
+                if (use_fused_softmax_cce)
+                {
+                    const size_t samples = train_output.rows();
+                    const size_t cols = train_output.cols();
+                    const double inv_samples = 1.0 / static_cast<double>(samples);
+                    fused_grad.resize(samples, cols);
 
 // SIMD mathematical mapping directly scales the fused gradient without intermediate matrices
 #pragma omp parallel for if (train_output.size() > 8192)
-                for (int s = 0; s < samples; ++s)
-                {
-                    size_t target_idx = static_cast<size_t>(y_true_discrete[s]);
-                    size_t row_offset = s * cols;
+                    for (size_t s = 0; s < samples; ++s)
+                    {
+                        const size_t row_offset = s * cols;
+                        size_t target_idx = static_cast<size_t>((*batch_targets)[s]);
+                        if (batch_targets->cols() > 1)
+                        {
+                            target_idx = 0;
+                            const size_t target_offset = s * batch_targets->cols();
+                            for (size_t j = 1; j < batch_targets->cols(); ++j)
+                            {
+                                if ((*batch_targets)[target_offset + j] > (*batch_targets)[target_offset + target_idx])
+                                    target_idx = j;
+                            }
+                        }
 
 #pragma omp simd
-                    for (int j = 0; j < cols; ++j)
+                        for (size_t j = 0; j < cols; ++j)
+                        {
+                            double val = train_output[row_offset + j];
+                            if (j == target_idx)
+                                val -= 1.0;
+                            fused_grad[row_offset + j] = val * inv_samples;
+                        }
+                    }
+
+                    m_seq_layers.back().dense().backward(fused_grad, false);
+
+                    const Matrix *upstream_grad = &m_seq_layers.back().dinputs();
+                    for (int i = static_cast<int>(final_layer_idx) - 1; i >= 0; --i)
                     {
-                        double val = train_output[row_offset + j];
-                        if (j == target_idx)
-                            val -= 1.0;
-                        fused_grad[row_offset + j] = val * inv_samples;
+                        m_seq_layers[i].backward(*upstream_grad, false);
+                        upstream_grad = &m_seq_layers[i].dinputs();
+                    }
+                }
+                else
+                {
+                    m_loss->backward(train_output, *batch_targets);
+                    const Matrix *upstream_grad = &m_loss->dinputs;
+
+                    for (int i = static_cast<int>(final_layer_idx); i >= 0; --i)
+                    {
+                        m_seq_layers[i].backward(*upstream_grad, false);
+                        upstream_grad = &m_seq_layers[i].dinputs();
                     }
                 }
 
-                m_seq_layers.back().dense().backward(fused_grad);
-
-                const Matrix *upstream_grad = &m_seq_layers.back().dinputs();
-                for (int i = static_cast<int>(final_layer_idx) - 1; i >= 0; --i)
-                {
-                    m_seq_layers[i].backward(*upstream_grad);
-                    upstream_grad = &m_seq_layers[i].dinputs();
-                }
+                // 3. PARAMETER UPDATE
+                m_optimizer->pre_update_params();
+                for (auto &layer : m_seq_layers)
+                    m_optimizer->update_params(layer.dense(), true);
+                m_optimizer->post_update_params();
             }
-            else
+
+            if (should_report)
             {
-                m_loss->backward(train_output, y_train_target);
-                const Matrix *upstream_grad = &m_loss->dinputs;
-
-                for (int i = static_cast<int>(final_layer_idx); i >= 0; --i)
-                {
-                    m_seq_layers[i].backward(*upstream_grad);
-                    upstream_grad = &m_seq_layers[i].dinputs();
-                }
+                double reg_loss = 0.0;
+                for (const auto &layer : m_seq_layers)
+                    reg_loss += Loss::regularization_loss(layer.dense());
+                weighted_train_loss += reg_loss * static_cast<double>(X_train.rows());
             }
 
-            // 4. PARAMETER UPDATE
-            m_optimizer->pre_update_params();
-            for (auto &layer : m_seq_layers)
-            {
-                m_optimizer->update_params(layer.dense());
-            }
-            m_optimizer->post_update_params();
-
-            // 5. VALIDATION PASS
-            double val_loss = 0.0;
-            double val_accuracy = 0.0;
-            if (has_val)
+            const bool evaluate_validation = has_val &&
+                                             (epoch % validation_every == 0 || epoch == 1 || epoch == n_epochs);
+            if (evaluate_validation)
             {
                 EvaluationResult val_res = evaluate(X_val, y_val, false);
                 val_loss = val_res.loss;
                 val_accuracy = val_res.accuracy;
             }
 
-            // 6. PROGRESS REPORTING
-            if (epoch % print_every == 0 || epoch == 1 || epoch == n_epochs)
+            // 4. PROGRESS REPORTING
+            if (should_report)
             {
+                const double total_train_loss = weighted_train_loss / static_cast<double>(X_train.rows());
+                const double train_accuracy = weighted_train_accuracy / static_cast<double>(X_train.rows());
                 displayEpoch(n_epochs,
                              epoch,
                              total_train_loss,
@@ -479,9 +555,12 @@ public:
                              train_accuracy,
                              val_accuracy,
                              m_optimizer->get_current_learning_rate(),
-                             has_val,
+                             evaluate_validation,
                              m_model_type);
             }
         }
+
+        for (auto &layer : m_seq_layers)
+            layer.cache_current_inputs();
     }
 };

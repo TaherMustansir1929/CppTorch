@@ -21,6 +21,14 @@ public:
             double conf = 0.0;
             size_t row_offset = i * classes;
 
+            if (y_true.cols() == 1)
+            {
+                const size_t target_idx = static_cast<size_t>(y_true[i]);
+                conf = std::clamp(y_pred[row_offset + target_idx], 1e-7, 1.0 - 1e-7);
+                sample_losses[i] = -std::log(conf);
+                continue;
+            }
+
 #pragma omp simd reduction(+ : conf)
             for (size_t j = 0; j < classes; ++j)
             {
@@ -37,6 +45,21 @@ public:
     {
         double samples = static_cast<double>(dvalues.rows());
         this->dinputs.resize(dvalues.rows(), dvalues.cols());
+
+        if (y_true.cols() == 1)
+        {
+#pragma omp parallel for if (dvalues.size() > 8192)
+            for (size_t i = 0; i < dvalues.rows(); ++i)
+            {
+                const size_t row_offset = i * dvalues.cols();
+                const size_t target_idx = static_cast<size_t>(y_true[i]);
+                for (size_t j = 0; j < dvalues.cols(); ++j)
+                    this->dinputs[row_offset + j] = 0.0;
+                this->dinputs[row_offset + target_idx] =
+                    -1.0 / dvalues[row_offset + target_idx] / samples;
+            }
+            return;
+        }
 
 // Single pass execution avoids chaining allocation operations
 #pragma omp parallel for simd if (dvalues.size() > 1024)
