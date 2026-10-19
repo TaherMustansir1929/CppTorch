@@ -2,7 +2,7 @@
 
 #include "categorical_crossentropy.h"
 #include "layers/activations/softmax.h"
-
+#include <omp.h>
 
 class Activation_Softmax_Loss_CategoricalCrossentropy
 {
@@ -12,18 +12,13 @@ public:
 
     Matrix output, dinputs;
 
-
     [[nodiscard("data_loss value ignored")]] double forward(const Matrix &inputs, const Matrix &y_true)
     {
-        // Output layer's activation function
         this->activation.forward(inputs);
-        // Set the output probabilities
         this->output = this->activation.output;
-        // Calculate and return scalar loss value
         return this->loss.calculate(this->output, y_true);
     }
 
-    // Alias for consistency with Loss::calculate
     double calculate(const Matrix &inputs, const Matrix &y_true)
     {
         return forward(inputs, y_true);
@@ -32,21 +27,29 @@ public:
     void backward(const Matrix &y_true)
     {
         int samples = static_cast<int>(this->output.rows());
+        int cols = static_cast<int>(this->output.cols());
+        double inv_samples = 1.0 / static_cast<double>(samples);
 
-        // If labels are one-hot encoded (cols > 1), turn them into discrete values
         Matrix y_true_discrete = (y_true.cols() > 1) ? NumCpp::argmax(y_true, 1) : y_true;
+        this->dinputs.resize(samples, cols);
 
-        // Initialize the gradient using the predicted probabilities
-        this->dinputs = this->output;
-
-        // Calculate gradient: (y_pred - y_true)
+// Assigns, evaluates target index logic, and normalizes by samples all in one pass
+#pragma omp parallel for if (samples > 64)
         for (int i = 0; i < samples; i++)
         {
-            auto target_idx = static_cast<size_t>(y_true_discrete[i]);
-            this->dinputs(i, target_idx) -= 1.0;
-        }
+            size_t target_idx = static_cast<size_t>(y_true_discrete[i]);
+            size_t row_offset = i * cols;
 
-        // Normalize gradient over samples
-        this->dinputs /= samples;
+#pragma omp simd
+            for (int j = 0; j < cols; ++j)
+            {
+                double val = this->output[row_offset + j];
+                if (j == target_idx)
+                {
+                    val -= 1.0;
+                }
+                this->dinputs[row_offset + j] = val * inv_samples;
+            }
+        }
     }
 };

@@ -5,9 +5,10 @@
 class Activation_Linear : public Activation
 {
 public:
-    void forward(const Matrix &inputs) override
+    void forward(const Matrix &inputs, bool cache_inputs = true) override
     {
-        this->inputs = inputs;
+        if (cache_inputs)
+            this->inputs = inputs;
         this->output = inputs;
     }
 

@@ -3,15 +3,16 @@
 #include "core/matrix.h"
 #include "core/numcpp.h"
 #include "datasets.h"
+#include "layers/activations/linear.h"
 #include "layers/activations/relu.h"
 #include "layers/activations/softmax.h"
-#include "layers/activations/linear.h"
 #include "layers/dense.h"
 #include "layers/dropout.h"
 #include "losses/categorical_crossentropy.h"
 #include "losses/loss.h"
 #include "losses/mean_squared_error.h"
 #include "losses/softmax_categoricalcrossentropy.h"
+#include "model.h"
 #include "optimizers/adagrad.h"
 #include "optimizers/adam.h"
 #include "optimizers/rmsprop.h"
@@ -39,4 +40,5 @@ public:
     static void train_california_housing();
     static void california_housing_with_cpptorch();
     static void test_softmax_backward();
+    static void gender_audio_classification();
 };

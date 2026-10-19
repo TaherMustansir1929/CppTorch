@@ -11,9 +11,7 @@ inline double randomNormalValue()
 {
     static thread_local std::random_device rd;
     static thread_local std::mt19937 gen(rd());
-
-    // Mean of 0.0, Standard Deviation of 1.0
-    std::normal_distribution<double> dist(0.0, 1.0);
+    static thread_local std::normal_distribution<double> dist(0.0, 1.0);
 
     return dist(gen);
 }
@@ -22,8 +20,8 @@ inline double randomBinomialValue(int n, double p)
 {
     static thread_local std::random_device rd;
     static thread_local std::mt19937 gen(rd());
-
-    std::binomial_distribution<int> dist(n, p);
+    static thread_local std::binomial_distribution<int> dist(n, p);
+    dist.param(std::binomial_distribution<int>::param_type(n, p));
 
     return static_cast<double>(dist(gen));
 }

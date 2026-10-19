@@ -4,11 +4,25 @@ set(PRODUCTION_BUILD OFF CACHE BOOL "Make this a production build" FORCE)
 
 project(CppTorch LANGUAGES CXX)
 
+# Enable OpenMP
+find_package(OpenMP REQUIRED)
+
 file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
 add_executable(CppTorch ${MY_SOURCES} main.cpp)
+
+# OpenBLAS is required for dense matrix multiplication.
+set(BLA_VENDOR OpenBLAS)
+find_package(BLAS REQUIRED)
+find_path(CBLAS_INCLUDE_DIR NAMES cblas.h
+    PATH_SUFFIXES x86_64-linux-gnu/openblas-pthread openblas-pthread x86_64-linux-gnu REQUIRED)
+target_include_directories(CppTorch PRIVATE ${CBLAS_INCLUDE_DIR})
+target_link_libraries(CppTorch PRIVATE BLAS::BLAS)
+
+# Link OpenMP to the executable
+target_link_libraries(CppTorch PRIVATE OpenMP::OpenMP_CXX)
 
 target_include_directories(CppTorch PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -16,20 +30,29 @@ target_include_directories(CppTorch PRIVATE
 
 target_compile_features(CppTorch PRIVATE cxx_std_20)
 
-if(PRODUCTION_BUILD)
-	# setup the ASSETS_PATH macro to be in the root folder of your exe
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC RESOURCES_PATH="./resources/") 
-
-	# remove the option to debug asserts.
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC PRODUCTION_BUILD=1) 
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC DEVELOPMENT_BUILD=0) 
-
+if(MSVC)
+    target_compile_options(CppTorch PRIVATE
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/O2>
+    )
 else()
-	# This is useful to get an ASSETS_PATH in your IDE during development
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC RESOURCES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/resources/")
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC PRODUCTION_BUILD=0) 
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC DEVELOPMENT_BUILD=1) 
+    target_compile_options(CppTorch PRIVATE
+        $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:RelWithDebInfo>:-O2>
+        $<$<CONFIG:Release>:-march=native>
+    )
+endif()
 
+if(PRODUCTION_BUILD)
+    target_compile_definitions(CppTorch PUBLIC RESOURCES_PATH="./resources/")
+    target_compile_definitions(CppTorch PUBLIC PRODUCTION_BUILD=1)
+    target_compile_definitions(CppTorch PUBLIC DEVELOPMENT_BUILD=0)
+else()
+    target_compile_definitions(CppTorch PUBLIC
+        RESOURCES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/resources/"
+    )
+    target_compile_definitions(CppTorch PUBLIC PRODUCTION_BUILD=0)
+    target_compile_definitions(CppTorch PUBLIC DEVELOPMENT_BUILD=1)
 endif()
 
 if (POLICY CMP0141)
