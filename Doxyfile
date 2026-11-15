@@ -1,0 +1,56 @@
+# Doxygen configuration for CppTorch.
+#
+#   doxygen Doxyfile
+#
+# The generated HTML lands in docs/html. The generated files are not tracked;
+# only the source documentation comments in include/cpptorch are.
+
+PROJECT_NAME           = "CppTorch"
+PROJECT_NUMBER         = 0.1.0
+PROJECT_BRIEF          = "Minimal neural networks library with numpy-style array primitives"
+
+OUTPUT_DIRECTORY       = docs
+CREATE_SUBDIRS         = NO
+OUTPUT_LANGUAGE        = English
+
+INPUT                  = include/cpptorch \
+                         README.md \
+                         CONTRIBUTING.md \
+                         docs/architecture.md
+FILE_PATTERNS          = *.h *.md
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */build/* */.venv/*
+
+# Use the @file, @brief, @param style used throughout the headers.
+JAVADOC_AUTOBRIEF      = YES
+OPTIMIZE_OUTPUT_FOR_C  = YES
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+BUILTIN_STL_SUPPORT    = YES
+TAB_SIZE               = 4
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+SORT_MEMBER_DOCS       = NO
+
+# Group the documentation the way the headers are organised.
+ENABLED_SECTIONS       =
+ALPHABETICAL_INDEX     = YES
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES

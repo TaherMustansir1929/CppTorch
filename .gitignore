@@ -25,3 +25,16 @@ build/
 build*/
 out/
 cmake-build-*/
+
+# CMake install prefix
+install/
+_deps/
+
+# Generated Doxygen output
+docs/html/
+docs/latex/
+
+# Conan
+.conan/
+conan.lock
+conaninfo.txt

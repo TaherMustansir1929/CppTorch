@@ -1,0 +1,24 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(OpenMP)
+find_dependency(BLAS)
+
+include("${CMAKE_CURRENT_LIST_DIR}/cpptorchTargets.cmake")
+
+# cblas.h is not exposed by the BLAS::BLAS imported target, so it is looked up
+# separately and added to the exported target.
+if(NOT CBLAS_INCLUDE_DIR)
+    find_path(CBLAS_INCLUDE_DIR
+        NAMES cblas.h
+        PATH_SUFFIXES openblas-pthread openblas x86_64-linux-gnu/openblas-pthread x86_64-linux-gnu
+    )
+endif()
+
+if(CBLAS_INCLUDE_DIR)
+    set_property(TARGET CppTorch::cpptorch APPEND PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES "${CBLAS_INCLUDE_DIR}")
+endif()
+
+check_required_components(cpptorch)
