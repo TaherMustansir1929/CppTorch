@@ -2,7 +2,6 @@
 
 <img src="web/public/cpptorch.png" alt="CppTorch" width="64" height="64" align="right" />
 
-[![CI](https://github.com/TaherMustansir1929/CppTorch/actions/workflows/ci.yml/badge.svg)](https://github.com/TaherMustansir1929/CppTorch/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 
