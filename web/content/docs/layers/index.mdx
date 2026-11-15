@@ -1,0 +1,51 @@
+---
+title: Layers
+description: The building blocks of a CppTorch network — dense layers, dropout and the layer wrapper.
+icon: Stack
+---
+
+A CppTorch network is a sequence of layers. Each layer is a
+`Layer_Wrapper`, which bundles three things:
+
+```
+inputs ──▶ Layer_Dense ──▶ [Layer_Dropout] ──▶ Activation ──▶ output
+```
+
+| Type | Header | Purpose |
+| --- | --- | --- |
+| `Layer_Dense` | `cpptorch/layers/dense.h` | The fully connected projection `inputs * weights + biases` |
+| `Layer_Dropout` | `cpptorch/layers/dropout.h` | Inverted dropout during training |
+| `Layer_Wrapper` | `cpptorch/layers/layer.h` | Bundles the three into one layer of a model |
+
+## Hyper-parameters
+
+`HyperParameters_Layer_Wrapper` is the struct you pass to
+`Model::add_layer()`.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `n_inputs` | `size_t` | `0` | Number of input features |
+| `n_neurons` | `size_t` | `0` | Number of neurons in the layer |
+| `weight_regularizer_l1` | `double` | `0.0` | L1 penalty on the weights |
+| `weight_regularizer_l2` | `double` | `0.0` | L2 penalty on the weights |
+| `bias_regularizer_l1` | `double` | `0.0` | L1 penalty on the biases |
+| `bias_regularizer_l2` | `double` | `0.0` | L2 penalty on the biases |
+| `activation_type` | `ActivationType` | `Linear` | Activation applied after the dense projection |
+| `dropout_rate` | `double` | `0.0` | Dropout probability; `0.0` disables dropout |
+
+Because the fields are declared in this order, they can be filled with
+designated initializers:
+
+```cpp
+model.add_layer({
+    .n_inputs = 64,
+    .n_neurons = 32,
+    .activation_type = ActivationType::ReLU,
+    .dropout_rate = 0.2,
+});
+```
+
+<Callout title="Order matters">
+  Layers run in the order they are added, so `n_inputs` of a layer must match
+  `n_neurons` of the previous one.
+</Callout>

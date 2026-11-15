@@ -1,0 +1,44 @@
+---
+title: Core
+description: The mathematical core of CppTorch — Matrix, MatrixView and NumCpp.
+icon: Cpu
+---
+
+The **core** is the part of CppTorch that does the maths. It has no
+dependencies beyond BLAS and OpenMP, and it is the only part of the library
+that everything else builds on.
+
+| Type | Header | Purpose |
+| --- | --- | --- |
+| `Matrix` | `cpptorch/core/matrix.h` | A dense, row-major matrix of doubles with numpy broadcasting |
+| `MatrixView` | `cpptorch/core/matrix.h` | A non-owning window over a contiguous range of rows |
+| `NumCpp` | `cpptorch/core/numcpp.h` | numpy-style operations on `Matrix` |
+
+## Design notes
+
+`Matrix` stores its elements in a single flat `std::vector<double>`. This is
+what makes the BLAS calls free: `cblas_dgemm` can be handed a pointer into the
+buffer without any copy or stride arithmetic.
+
+`MatrixView` is a non-owning window over a contiguous range of rows. The
+training loop uses it to iterate over mini-batches without copying the data out
+of the training matrix.
+
+`NumCpp` holds the numpy-style operations. Operations that produce a new matrix
+are named after the numpy function; operations that write into a caller-provided
+buffer end in `_into`. The `_into` variants exist so that hot loops can reuse a
+buffer instead of allocating on every iteration.
+
+```
+Matrix / MatrixView / NumCpp        ← core maths
+        ▲            ▲
+        │            │
+   Layer_Wrapper   Loss / Optimizer
+        │
+      Model                        ← training loop
+```
+
+<Callout title="Reading the headers">
+  Every header in `include/cpptorch/` is self-contained and can be included on
+  its own. `#include <cpptorch/cpptorch.h>` pulls in the whole public API.
+</Callout>

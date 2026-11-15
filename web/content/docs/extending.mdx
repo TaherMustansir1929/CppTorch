@@ -1,0 +1,147 @@
+---
+title: Extending the Library
+description: Add a new activation, loss, optimizer or dataset without touching the training loop.
+icon: PuzzlePiece
+---
+
+CppTorch separates the **core** (the maths and the training loop) from the
+**components** (activations, losses, optimizers). The core never needs to
+change when a component is added — this is the property that keeps the library
+stable.
+
+| Component | Base class | Enum | Factory |
+| --- | --- | --- | --- |
+| Activation | `cpptorch::Activation` | `ActivationType` | `make_activation` |
+| Loss | `cpptorch::Loss` | `LossType` | `make_loss` |
+| Optimizer | `cpptorch::Optimizer` | `OptimizerType` | `make_optimizer` |
+| Dataset | — | — | a static function on `Datasets` |
+
+## Example: adding a Leaky ReLU activation
+
+**1. Create the header** `include/cpptorch/layers/activations/leaky_relu.h`:
+
+```cpp
+#pragma once
+
+#include "cpptorch/layers/activations/activation.h"
+
+namespace cpptorch
+{
+
+/**
+ * @brief Leaky ReLU activation, f(x) = x for x >= 0, alpha * x otherwise.
+ */
+class Activation_LeakyReLU : public Activation
+{
+    double m_alpha = 0.01;
+
+public:
+    explicit Activation_LeakyReLU(double alpha = 0.01) : m_alpha(alpha) {}
+
+    void forward(const Matrix &inputs, bool cache_inputs = true) override
+    {
+        if (cache_inputs)
+            this->inputs = inputs;
+        this->output.resize(inputs.rows(), inputs.cols());
+        for (size_t i = 0; i < inputs.size(); ++i)
+            this->output[i] = inputs[i] > 0.0 ? inputs[i] : m_alpha * inputs[i];
+    }
+
+    void backward(const Matrix &dvalues) override
+    {
+        this->dinputs.resize(dvalues.rows(), dvalues.cols());
+        for (size_t i = 0; i < this->output.size(); ++i)
+            this->dinputs[i] = this->output[i] > 0.0 ? dvalues[i] : m_alpha * dvalues[i];
+    }
+};
+
+} // namespace cpptorch
+```
+
+**2. Add the enum value** in `activation.h`:
+
+```cpp
+enum class ActivationType : std::uint8_t
+{
+    Linear = 0,
+    ReLU = 1,
+    Softmax = 2,
+    LeakyReLU = 3,   // <- new
+};
+```
+
+**3. Register it** in `activation_registry.h`:
+
+```cpp
+case ActivationType::LeakyReLU:
+    return std::make_unique<Activation_LeakyReLU>();
+```
+
+**4. Export it** by adding the header to `include/cpptorch/cpptorch.h`.
+
+**5. Test it** — add `tests/full_pass_with_leaky_relu.cpp`, register it in
+`tests/CMakeLists.txt` and in the dispatcher in `tests/main.cpp`.
+
+`model.h` was not touched.
+
+## The extension-point contract
+
+The guarantees the core relies on:
+
+1. **`model.h` never changes** when a component is added. The training loop
+   only calls the factories.
+2. A component is **one self-contained header**. It has no knowledge of
+   `Model`, and the core has no knowledge of the component beyond its enum
+   value.
+3. A component only depends on the base class it derives from and on
+   `core/matrix.h`. It must not include `model.h`.
+4. The enum value is the **only** identifier the core needs. Adding a value is
+   backwards compatible.
+
+## A new loss
+
+Identical shape, with `cpptorch::Loss` as the base class, `cpptorch::LossType`
+as the enum and `cpptorch::make_loss` as the factory. The loss must implement
+`forward()` (per-sample losses) and `backward()` (gradient with respect to the
+prediction).
+
+To use a custom loss with a `Model`, either add it to the registry and map it
+from a `ModelType`, or call `Model::set_loss()` with your own instance.
+
+## A new optimizer
+
+Identical shape, with `cpptorch::Optimizer` as the base class,
+`cpptorch::OptimizerType` as the enum and `cpptorch::make_optimizer` as the
+factory. The optimizer must implement `update_params(Layer_Dense &)` and may
+override `pre_update_params()` to customise the learning-rate schedule.
+
+## A new dataset
+
+Add a static function to `cpptorch::Datasets` in `include/cpptorch/datasets.h`:
+
+```cpp
+static std::tuple<Matrix, Matrix> my_dataset(const std::string &filename = "my_data.csv")
+{
+    std::ifstream file = open_dataset(filename);
+    if (!file.is_open())
+        throw std::runtime_error("[Datasets::my_dataset] Failed to open CSV file: " + filename);
+    // ... parse ...
+    return {X, y};
+}
+```
+
+`open_dataset()` resolves the path through `cpptorch::Resources`, so the file
+is looked up in the resources directory, in the working directory, and finally
+by bare name.
+
+## A new layer
+
+A layer that is not "dense + activation" needs a new `Layer_Wrapper`. Keep the
+change inside `include/cpptorch/layers/layer.h` and preserve the contract the
+training loop depends on:
+
+- `forward()` computes and caches the output,
+- `backward()` fills `dinputs()` with the gradient with respect to the input,
+- `dense()` exposes the parameters for the optimizer.
+
+If the new layer does not own parameters, return an empty dense layer.

@@ -1,0 +1,86 @@
+---
+title: Losses
+description: The Loss base class, mean squared error, categorical cross-entropy and the fused softmax + cross-entropy pair.
+icon: Target
+---
+
+Losses live in `cpptorch/losses/`. Every loss derives from `Loss` and is
+created through the `make_loss()` factory, which maps a `LossType` to a
+concrete implementation.
+
+## LossType
+
+| Value | Meaning |
+| --- | --- |
+| `MeanSquaredError` | Mean squared error, for regression |
+| `CategoricalCrossEntropy` | Categorical cross-entropy, for classification |
+
+## Loss
+
+The base class. Owns the `dinputs` gradient buffer.
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `virtual forward(const Matrix &y_pred, const Matrix &y_true) = 0` | `Matrix` | The per-sample losses |
+| `virtual backward(const Matrix &dvalues, const Matrix &y_true) = 0` | `void` | Gradient of the loss with respect to the prediction |
+| `calculate(const Matrix &output, const Matrix &y)` | `double` | Mean of the per-sample losses |
+| `static accuracy(const Matrix &output, const Matrix &y)` | `double` | Fraction of correctly classified samples |
+| `static regularization_loss(const Layer_Dense &layer)` | `double` | Total L1 + L2 penalty of a layer |
+
+## Loss_MeanSquaredError
+
+Mean squared error, for regression. `forward()` returns the mean squared error
+per sample; `backward()` scales the gradient by `-2 / (outputs * samples)`.
+
+```cpp
+Model model(ModelType::Regression);   // uses MeanSquaredError by default
+```
+
+## Loss_CategoricalCrossEntropy
+
+Categorical cross-entropy, for classification. Accepts either one-hot targets
+or a column of class indices. Probabilities are clipped to `[1e-7, 1 - 1e-7]`
+before taking the logarithm.
+
+```cpp
+Model model(ModelType::Classification);   // uses CategoricalCrossEntropy by default
+```
+
+<Callout title="Sparse targets are supported">
+  A column of class indices is accepted as well as a one-hot matrix — the
+  clipping keeps the logarithm finite even when the model is confidently
+  wrong.
+</Callout>
+
+## Activation_Softmax_Loss_CategoricalCrossentropy
+
+The fused softmax activation and cross-entropy loss. Combining the two folds
+the gradient of the softmax into the loss gradient, which avoids materialising
+an intermediate Jacobian and is measurably faster than running the two steps
+separately.
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `activation` | `Activation_Softmax` | The softmax activation |
+| `loss` | `Loss_CategoricalCrossEntropy` | The loss |
+| `output` | `Matrix` | Output of the softmax |
+| `dinputs` | `Matrix` | Gradient with respect to the layer input |
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `forward(const Matrix &inputs, const Matrix &y_true)` | `double` | Runs the softmax forward and scores the result |
+| `calculate(const Matrix &inputs, const Matrix &y_true)` | `double` | Alias of `forward()` that only returns the loss |
+| `backward(const Matrix &y_true)` | `void` | Computes the fused gradient |
+
+## The factory
+
+```cpp
+#include <cpptorch/losses/loss_registry.h>
+
+using namespace cpptorch;
+
+std::unique_ptr<Loss> loss = make_loss(LossType::CategoricalCrossEntropy);
+```
+
+`make_loss()` throws `std::invalid_argument` when the type is unknown. See
+[Extending the library](/docs/extending) for the full recipe.

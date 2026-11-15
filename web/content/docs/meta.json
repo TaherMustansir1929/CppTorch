@@ -1,0 +1,22 @@
+{
+  "title": "CppTorch",
+  "icon": "Sparkle",
+  "pages": [
+    "index",
+    "getting-started",
+    "---Guides---",
+    "model",
+    "datasets",
+    "---API Reference---",
+    "core",
+    "layers",
+    "losses",
+    "optimizers",
+    "---Project---",
+    "architecture",
+    "extending",
+    "contributing",
+    "---About---",
+    "about-me"
+  ]
+}

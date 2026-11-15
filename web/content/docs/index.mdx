@@ -1,0 +1,109 @@
+---
+title: Introduction
+description: A minimal neural networks library in C++20 with numpy-style array primitives, dense layers, losses, optimizers and a complete training loop.
+icon: Sparkle
+---
+
+import { GridFour } from '@phosphor-icons/react/ssr';
+import { Heartbeat } from '@phosphor-icons/react/ssr';
+import { Cube } from '@phosphor-icons/react/ssr';
+import { Lightning } from '@phosphor-icons/react/ssr';
+import { Package } from '@phosphor-icons/react/ssr';
+import { ShieldCheck } from '@phosphor-icons/react/ssr';
+
+CppTorch is a **minimal neural networks library in C++20** with numpy-style array
+primitives. It provides the building blocks of a small deep-learning framework: a
+`Matrix` type with numpy-like broadcasting, a `NumCpp` namespace of array
+operations backed by BLAS, dense and dropout layers, activations, losses,
+optimizers, and a high-level `Model` with training and evaluation loops.
+
+The library is **header-only** and depends only on **OpenMP** and a **CBLAS**
+provider (OpenBLAS recommended).
+
+```cpp
+#include <cpptorch/cpptorch.h>
+```
+
+## Why CppTorch?
+
+<Cards>
+  <Card title="numpy-style arrays" icon={<GridFour weight="thin" />}>
+    `Matrix` with broadcasting, flat contiguous storage and BLAS-backed matrix
+    products.
+  </Card>
+  <Card title="Full training loop" icon={<Heartbeat weight="thin" />}>
+    `Model::train()` handles the forward pass, the backward pass and the
+    parameter update, with mini-batching, learning-rate decay, L1/L2
+    regularization and an optional validation set.
+  </Card>
+  <Card title="Composable components" icon={<Cube weight="thin" />}>
+    Activations, losses and optimizers are separate pieces behind a common base
+    class and are plugged in through factories, so a new component never
+    requires touching the training loop.
+  </Card>
+  <Card title="Performance" icon={<Lightning weight="thin" />}>
+    OpenMP-parallel element-wise kernels, a fused softmax + cross-entropy
+    gradient, zero-copy mini-batches and zero-allocation buffer reuse in the
+    hot paths.
+  </Card>
+  <Card title="Header-only" icon={<Package weight="thin" />}>
+    No ABI to track; consume it as a CMake package, a subdirectory, or a single
+    copied header folder.
+  </Card>
+  <Card title="Tested" icon={<ShieldCheck weight="thin" />}>
+    A 15-test CTest suite that runs on Linux, macOS and Windows, with the
+    California housing and Kaggle gender audio datasets bundled in.
+  </Card>
+</Cards>
+
+## The 30-second version
+
+```cpp
+#include <cpptorch/cpptorch.h>
+
+int main()
+{
+    using namespace cpptorch;
+
+    // 1. Data: a 3-class spiral with 100 samples per class.
+    auto [X, y] = Datasets::spiral_data(100, 3);
+
+    // 2. Model: 2 -> 64 (ReLU) -> 32 (ReLU) -> 3 (Softmax).
+    Model model(ModelType::Classification);
+
+    model.add_layer({.n_inputs = X.cols(), .n_neurons = 64, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 64, .n_neurons = 32, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 32, .n_neurons = 3, .activation_type = ActivationType::Softmax});
+
+    // 3. Train with Adam and a decaying learning rate.
+    model.set_optimizer({.optmzr_type = OptimizerType::Adam, .learning_rate = 0.01, .decay = 1e-3});
+    model.train(X, y, /*n_epochs=*/100);
+
+    // 4. Evaluate.
+    auto result = model.evaluate(X, y);
+    std::cout << "Accuracy: " << result.accuracy * 100.0 << "%\n";
+
+    // 5. Predict.
+    Matrix classes = model.predict_classes(X);
+    std::cout << "First prediction: " << classes(0, 0) << "\n";
+
+    return 0;
+}
+```
+
+<Callout title="Where to go next">
+  Head to [Getting Started](/docs/getting-started) to install the library, then
+  read the [Model](/docs/model) guide for the full training API.
+</Callout>
+
+## What is in the box
+
+| Group | Types | Purpose |
+| --- | --- | --- |
+| **Core** | `Matrix`, `MatrixView`, `NumCpp` | Array primitives and numpy-style maths |
+| **Layers** | `Layer_Dense`, `Layer_Dropout`, `Layer_Wrapper` | The building blocks of a network |
+| **Activations** | `Activation_Linear`, `Activation_ReLU`, `Activation_Softmax` | Non-linearities |
+| **Losses** | `Loss_MeanSquaredError`, `Loss_CategoricalCrossEntropy` | Objectives |
+| **Optimizers** | `Optimizer_SGD`, `Optimizer_Adagrad`, `Optimizer_RMSprop`, `Optimizer_Adam` | Parameter updates |
+| **Model** | `Model` | The training and evaluation loops |
+| **Datasets** | `Datasets`, `StandardScaler`, `Resources` | Data loading and preprocessing |

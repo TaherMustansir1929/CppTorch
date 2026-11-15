@@ -1,0 +1,258 @@
+---
+title: Getting Started
+description: Requirements, installation options and your first CppTorch model.
+icon: Rocket
+---
+
+## Requirements
+
+| Dependency | Version | Notes |
+| --- | --- | --- |
+| C++ compiler | GCC 11+, Clang 14+, MSVC 19.30+ | C++20 is required |
+| CMake | 3.21+ | Only needed if you use the CMake integration |
+| OpenMP | — | Usually bundled with the compiler |
+| BLAS | — | OpenBLAS recommended (`libopenblas-dev`, `brew install openblas`) |
+
+```bash
+# Debian / Ubuntu
+sudo apt install build-essential cmake libopenblas-dev
+
+# macOS
+brew install cmake openblas
+
+# Windows (vcpkg)
+vcpkg install openblas
+```
+
+## Installation
+
+### Build and install from source
+
+```bash
+git clone https://github.com/TaherMustansir1929/CppTorch.git
+cd CppTorch
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+cmake --install build --prefix /your/prefix
+```
+
+This installs:
+
+```
+<prefix>/include/cpptorch/**/*.h
+<prefix>/lib/cmake/cpptorch/cpptorchConfig.cmake
+<prefix>/lib/cmake/cpptorch/cpptorchConfigVersion.cmake
+<prefix>/lib/cmake/cpptorch/cpptorchTargets.cmake
+```
+
+### Consume the installed package
+
+```cmake
+cmake_minimum_required(VERSION 3.21)
+project(my_app LANGUAGES CXX)
+
+find_package(cpptorch 0.1 REQUIRED)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE CppTorch::cpptorch)
+```
+
+`CppTorch::cpptorch` carries the include directory, the C++20 requirement and
+the OpenMP/BLAS dependencies, so nothing else is needed in your
+`CMakeLists.txt`.
+
+`find_package` accepts a version range:
+
+```cmake
+find_package(cpptorch 0.1...<1.0 REQUIRED)
+```
+
+### Use as a subdirectory
+
+```cmake
+add_subdirectory(external/CppTorch)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE CppTorch::cpptorch)
+```
+
+When the project is not the top-level one, `cpptorch_BUILD_TESTS`,
+`cpptorch_BUILD_EXAMPLES` and `cpptorch_INSTALL` all default to `OFF`, so the
+parent build stays clean.
+
+### Vendor the headers
+
+CppTorch is header-only. Copy `include/cpptorch/` into your project and add it
+to the include path:
+
+```bash
+cp -r external/CppTorch/include/cpptorch my_project/third_party/
+```
+
+```bash
+g++ -std=c++20 -fopenmp -I my_project/third_party my_project/main.cpp -lopenblas -o my_app
+```
+
+### Package managers
+
+The repository ships a vcpkg manifest and a Conan recipe.
+
+```bash
+# vcpkg (manifest mode)
+vcpkg install cpptorch
+
+# Conan
+conan create .
+conan install --requires=cpptorch/0.1.0 -of build
+```
+
+## Building without CMake
+
+```bash
+g++ -std=c++20 -O3 -fopenmp -march=native \
+    -I /your/prefix/include \
+    main.cpp -lopenblas -o my_app
+```
+
+```bash
+clang++ -std=c++20 -O3 -fopenmp \
+    -I /your/prefix/include \
+    main.cpp -lopenblas -o my_app
+```
+
+## Configuration
+
+### CMake options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `cpptorch_BUILD_TESTS` | `ON` when top-level | Build the test suite |
+| `cpptorch_BUILD_EXAMPLES` | `ON` when top-level | Build the examples |
+| `cpptorch_INSTALL` | `ON` when top-level | Generate the install rules |
+
+```bash
+cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -Dcpptorch_BUILD_TESTS=OFF \
+      -Dcpptorch_BUILD_EXAMPLES=OFF
+```
+
+### BLAS and OpenMP
+
+The library needs a CBLAS provider and OpenMP. CMake locates both
+automatically:
+
+- `BLA_VENDOR` is set to `OpenBLAS` by default. Override it to use another
+  provider, for example `-DBLA_VENDOR=MKL` or `-DBLA_VENDOR=AppleAccelerate`.
+- `cblas.h` is searched for in the standard locations. If it lives somewhere
+  unusual, point CMake at it: `-DCBLAS_INCLUDE_DIR=/path/to/include`.
+- `OpenMP::OpenMP_CXX` is found through `find_package(OpenMP)`.
+
+### Locating the bundled datasets
+
+`Datasets` resolves the CSV files at runtime, in this order:
+
+1. a directory installed with `cpptorch::Resources::set_dir("...")`,
+2. the `CPPTORCH_RESOURCES_PATH` environment variable,
+3. the `CPPTORCH_DEFAULT_RESOURCES_PATH` compile definition — set automatically
+   for in-tree builds of the tests and the examples,
+4. `./resources/` relative to the current working directory.
+
+```cpp
+#include <cpptorch/cpptorch.h>
+
+int main()
+{
+    cpptorch::Resources::set_dir("/opt/cpptorch/share/resources/");
+    // ...
+}
+```
+
+```bash
+CPPTORCH_RESOURCES_PATH=/opt/cpptorch/share/resources/ ./my_app
+```
+
+## Your first model
+
+```cpp
+#include <cpptorch/cpptorch.h>
+
+int main()
+{
+    using namespace cpptorch;
+
+    auto [X, y] = Datasets::spiral_data(100, 3);
+
+    Model model(ModelType::Classification);
+    model.add_layer({.n_inputs = X.cols(), .n_neurons = 64, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 64, .n_neurons = 32, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 32, .n_neurons = 3, .activation_type = ActivationType::Softmax});
+
+    model.set_optimizer({.optmzr_type = OptimizerType::Adam, .learning_rate = 0.01, .decay = 1e-3});
+    model.train(X, y, /*n_epochs=*/100);
+
+    auto result = model.evaluate(X, y);
+    std::cout << "Accuracy: " << result.accuracy * 100.0 << "%\n";
+
+    return 0;
+}
+```
+
+A complete, runnable version of this program lives in
+`examples/quickstart.cpp`.
+
+### Regression example
+
+```cpp
+#include <cpptorch/cpptorch.h>
+
+int main()
+{
+    using namespace cpptorch;
+
+    auto [X, y] = Datasets::california_housing();
+
+    StandardScaler scaler;
+    scaler.fit_transform(X);
+
+    Model model(ModelType::Regression);
+    model.add_layer({.n_inputs = X.cols(), .n_neurons = 64, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 64, .n_neurons = 1, .activation_type = ActivationType::Linear});
+    model.set_optimizer({.optmzr_type = OptimizerType::Adam, .learning_rate = 0.01, .decay = 1e-3});
+
+    model.train(X, y, 20);
+
+    auto result = model.evaluate(X, y);
+    std::cout << "RMSE: " << result.rmse << "\n";
+    return 0;
+}
+```
+
+## Building and testing the library
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+cd build && ctest --output-on-failure
+```
+
+The test suite is a single binary with a dispatcher, so you can also run a
+single test by hand:
+
+```bash
+./build/tests/cpptorch_tests full_pass_with_optimizer_adam
+```
+
+The examples are plain executables:
+
+```bash
+./build/examples/cpptorch_example_quickstart
+./build/examples/cpptorch_example_gender_audio_classification
+```
+
+The API documentation is generated with Doxygen:
+
+```bash
+doxygen Doxyfile   # writes docs/html
+```

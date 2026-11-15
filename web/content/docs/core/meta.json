@@ -1,0 +1,5 @@
+{
+  "title": "Core",
+  "icon": "Cpu",
+  "pages": ["index", "matrix", "numcpp"]
+}

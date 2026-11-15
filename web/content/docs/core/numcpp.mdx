@@ -1,0 +1,110 @@
+---
+title: NumCpp
+description: numpy-style operations on Matrix — creation, matrix products, reductions, element-wise maths and encoding.
+icon: Sigma
+---
+
+`cpptorch::NumCpp` provides numpy-style operations on `Matrix`. All operations
+are static and return new matrices, except the `_into` variants which write into
+a caller-provided buffer to avoid allocations in hot loops.
+
+```cpp
+#include <cpptorch/core/numcpp.h>
+
+using namespace cpptorch;
+
+Matrix a = NumCpp::randn({100, 3});
+Matrix b = NumCpp::dot(a, a.T());
+```
+
+## Creation
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `zeroes(tuple<size_t, size_t> shape)` | `Matrix` | A zero-filled matrix |
+| `ones(tuple<int, int> shape)` | `Matrix` | A matrix filled with ones |
+| `diagflat(const Matrix &a)` | `Matrix` | A diagonal matrix built from a flat vector |
+| `randn(tuple<size_t, size_t> shape)` | `Matrix` | Samples from the standard normal distribution |
+| `binomial(int n, double p, tuple<size_t, size_t> shape)` | `Matrix` | Samples from the binomial distribution; validates `n ≥ 0` and `0 ≤ p ≤ 1` |
+| `binomial_into(int n, double p, tuple<size_t, size_t> shape, Matrix &result)` | `void` | Same, written into `result` |
+| `linspace(double start, double stop, size_t num)` | `Matrix` | `num` evenly spaced samples over the closed interval |
+
+## Matrix products
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `dot(const Matrix &A, const Matrix &B)` | `Matrix` | `A * B` |
+| `dot_into(const Matrix &A, const Matrix &B, Matrix &result)` | `void` | `A * B` written into `result` |
+| `dot_into(const MatrixView &A, const Matrix &B, Matrix &result)` | `void` | `A * B` with `A` read as a view |
+| `dot_transpose_left(const Matrix &A, const Matrix &B)` | `Matrix` | `Aᵀ * B` without materialising the transpose |
+| `dot_transpose_left_into(const Matrix &A, const Matrix &B, Matrix &result)` | `void` | Same, written into `result` |
+| `dot_transpose_left_into(const MatrixView &A, const Matrix &B, Matrix &result)` | `void` | Same, with `A` read as a view |
+| `dot_transpose_right(const Matrix &A, const Matrix &B)` | `Matrix` | `A * Bᵀ` without materialising the transpose |
+| `dot_transpose_right_into(const Matrix &A, const Matrix &B, Matrix &result)` | `void` | Same, written into `result` |
+
+All of them throw `ShapeInvalidForOperation` when the inner dimensions do not
+match.
+
+<Callout title="Why the transpose variants exist">
+  The backward pass needs `Aᵀ * dvalues` and `dvalues * Bᵀ` on every batch.
+  The `dot_transpose_*` functions ask BLAS to transpose on the fly, so no
+  temporary copy of the matrix is allocated.
+</Callout>
+
+## Reductions
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `sum(const Matrix &A)` | `double` | Sum of all elements |
+| `sum(const Matrix &A, int axis)` | `Matrix` | Sum along axis 0 (rows) or 1 (columns) |
+| `sum_into(const Matrix &A, int axis, Matrix &result)` | `void` | Sum along an axis into `result`; currently axis 0 only |
+| `max(const Matrix &a)` | `double` | Largest element; throws `std::out_of_range` when empty |
+| `max(const Matrix &a, int axis)` | `Matrix` | Maximum along axis 0 or 1 |
+| `argmax(const Matrix &a)` | `std::tuple<size_t, size_t>` | Position of the largest element |
+| `argmax(const Matrix &a, int axis)` | `Matrix` | Index of the maximum along axis 0 or 1 |
+| `mean(const Matrix &a)` | `double` | Arithmetic mean; an empty matrix averages to zero |
+| `unique_count(const Matrix &a)` | `size_t` | Number of distinct values |
+
+Axis `0` reduces over the rows and returns a `(1, cols)` matrix; axis `1`
+reduces over the columns and returns a `(rows, 1)` matrix.
+
+## Element-wise math
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `exp(const Matrix &a)` | `Matrix` | Element-wise exponential |
+| `log(const Matrix &a)` | `Matrix` | Element-wise natural logarithm |
+| `sqrt(const Matrix &a)` | `Matrix` | Element-wise square root |
+| `abs(const Matrix &a)` | `Matrix` | Element-wise absolute value |
+| `sin(const Matrix &a)` | `Matrix` | Element-wise sine |
+| `cos(const Matrix &a)` | `Matrix` | Element-wise cosine |
+| `maximum(double operand, const Matrix &a)` | `Matrix` | Element-wise maximum against a scalar |
+| `clip(const Matrix &a, double min_val, double max_val)` | `Matrix` | Clamps to the closed interval |
+| `where(const Matrix &condition, double ifTrue, double ifFalse)` | `Matrix` | Selects between two values element-wise |
+
+## Encoding
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `one_hot(const Matrix &y, size_t n_classes)` | `Matrix` | Converts class indices into a one-hot matrix |
+| `outer(const Matrix &A, const Matrix &B)` | `Matrix` | The outer product `A * Bᵀ` of two flat matrices; throws on empty operands |
+
+## The `_into` convention
+
+Any operation that produces a new matrix has an `_into` twin that writes into a
+buffer you own. This keeps the hot paths allocation-free:
+
+```cpp
+Matrix buffer(0, 0);
+
+for (size_t i = 0; i < 100; ++i)
+{
+    // No allocation happens inside the loop.
+    NumCpp::dot_into(A, B, buffer);
+}
+```
+
+<Callout type="info" title="Shape rules">
+  `sum`, `max` and `argmax` throw `std::invalid_argument` when the axis is
+  neither `0` nor `1`, and `sum_into` currently supports axis `0` only.
+</Callout>

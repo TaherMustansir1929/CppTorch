@@ -1,0 +1,101 @@
+---
+title: Datasets
+description: Loading the bundled California housing and Kaggle gender audio datasets, plus feature scaling and resource lookup.
+icon: Database
+---
+
+`cpptorch::Datasets` loads the bundled CSV files and splits them into
+train/test/validation sets. Every loader accepts a `filename` argument and
+resolves it through `cpptorch::Resources`.
+
+## Loaders
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `spiral_data(size_t samples, size_t classes)` | `tuple<Matrix, Matrix>` | A synthetic spiral dataset with `samples` points per class. Returns inputs of shape `(samples * classes, 2)` and a column of class indices. |
+| `sine_data(size_t samples = 1000)` | `tuple<Matrix, Matrix>` | A synthetic sine wave: inputs uniformly spaced over `[0, 1]`, targets `sin(2πx)`. |
+| `california_housing(double train_ratio = 0.7, double test_ratio = 0.15, double val_ratio = 0.15, bool shuffle = true, unsigned int seed = 42, bool one_hot_categorical = true, const std::string &filename = "housing_data.csv")` | `tuple<Matrix, Matrix, Matrix, Matrix, Matrix, Matrix>` | The California housing dataset, split into train/test/validation. Missing `total_bedrooms` values are imputed with the median. `one_hot_categorical` one-hot encodes the `ocean_proximity` column instead of ordinal-encoding it. Returns `(X_train, y_train, X_test, y_test, X_val, y_val)`. |
+| `california_housing(const std::string &filename, double train_ratio = ..., ...)` | same | Overload taking the filename first |
+| `california_housing_data(...)` | same | Alias of `california_housing` |
+| `housing_data(...)` | same | Alias of `california_housing` |
+| `gender_audio_data(const std::string &filename = "gender_audio_features_kaggle.csv", double train_ratio = 0.7, double test_ratio = 0.15, double val_ratio = 0.15, bool shuffle = true, unsigned int seed = 42)` | `tuple<Matrix, Matrix, Matrix, Matrix, Matrix, Matrix>` | The Kaggle gender audio dataset: 43 acoustic features and a binary label. Returns `(X_train, y_train, X_test, y_test, X_val, y_val)`. |
+
+All loaders throw `std::runtime_error` when the file cannot be opened or
+contains no usable rows, and `std::invalid_argument` when the split ratios sum
+to zero.
+
+## Synthetic data
+
+```cpp
+using namespace cpptorch;
+
+// A 3-class spiral with 100 samples per class.
+auto [X, y] = Datasets::spiral_data(100, 3);
+// X: (300, 2), y: (300, 1)
+
+// A sine wave over [0, 1].
+auto [Xs, ys] = Datasets::sine_data(1000);
+```
+
+The spiral is the fastest way to check that a model learns: a small ReLU
+network reaches a high accuracy on it after a few dozen epochs.
+
+## California housing
+
+```cpp
+auto [X_train, y_train, X_test, y_test, X_val, y_val] = Datasets::california_housing();
+
+// Scale on the training set only, then apply the same statistics elsewhere.
+StandardScaler scaler;
+scaler.fit_transform(X_train);
+scaler.transform(X_val);
+scaler.transform(X_test);
+```
+
+The dataset has 8 numeric features plus the categorical `ocean_proximity`
+column. With `one_hot_categorical = true` (the default) the categorical column
+becomes 5 one-hot columns, so the input has 13 features; with
+`one_hot_categorical = false` it is ordinal-encoded and the input has 9
+features.
+
+<Callout title="Missing values">
+  Rows with a missing `total_bedrooms` value are imputed with the **median**
+  of the observed values, so a handful of gaps never skew the feature
+  distribution.
+</Callout>
+
+## Gender audio classification
+
+```cpp
+auto [X_train, y_train, X_test, y_test, X_val, y_val] =
+    Datasets::gender_audio_data();
+
+Model model(ModelType::Classification);
+model.add_layer({.n_inputs = X_train.cols(), .n_neurons = 64, .activation_type = ActivationType::ReLU});
+model.add_layer({.n_inputs = 64, .n_neurons = 32, .activation_type = ActivationType::ReLU});
+model.add_layer({.n_inputs = 32, .n_neurons = 2, .activation_type = ActivationType::Softmax});
+```
+
+A complete runnable program lives in `examples/gender_audio_classification.cpp`.
+
+## StandardScaler
+
+Standardises features to zero mean and unit variance. Fit it on the training
+set and then apply it unchanged to the validation and test sets.
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `fit(const Matrix &X)` | `void` | Computes the per-feature mean and standard deviation |
+| `fit_transform(Matrix &X)` | `void` | Fits on `X` and standardises it in place |
+| `transform(Matrix &X)` | `void` | Standardises `X` in place using the fitted statistics |
+
+## Resources
+
+Resolves the directory that holds the bundled CSV datasets. See
+[Locating the bundled datasets](/docs/getting-started#locating-the-bundled-datasets).
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `set_dir(const std::string &dir)` | `void` | Overrides the resources directory; an empty string clears the override |
+| `dir()` | `const std::string &` | The resources directory, always terminated with `/` |
+| `path(const std::string &filename)` | `std::string` | The full path of a file inside the resources directory |

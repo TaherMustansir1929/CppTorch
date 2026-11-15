@@ -1,0 +1,109 @@
+---
+title: Optimizers
+description: The Optimizer base class and the SGD, Adagrad, RMSprop and Adam implementations.
+icon: Gauge
+---
+
+Optimizers live in `cpptorch/optimizers/`. Every optimizer derives from
+`Optimizer` and is created through the `make_optimizer()` factory, which maps
+an `OptimizerType` and the hyper-parameters to a concrete implementation.
+
+## OptimizerType
+
+| Value | Meaning |
+| --- | --- |
+| `SGD` | Stochastic gradient descent, with optional momentum |
+| `Adagrad` | Per-parameter squared-gradient accumulation |
+| `RMSprop` | Exponentially averaged squared gradient |
+| `Adam` | Momentum plus adaptive learning rates |
+
+## HyperParameters_Optimizer
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `optmzr_type` | `OptimizerType` | `SGD` | The optimization algorithm |
+| `learning_rate` | `double` | `0.01` | Base learning rate |
+| `decay` | `double` | `0.0` | Learning-rate decay per iteration |
+| `momentum` | `double` | `0.0` | Momentum factor (SGD) |
+| `epsilon` | `double` | `1e-7` | Numerical stability constant |
+| `rho` | `double` | `0.9` | Decay of the squared-gradient cache (RMSprop) |
+| `beta_1` | `double` | `0.9` | Decay rate of the first moment (Adam) |
+| `beta_2` | `double` | `0.999` | Decay rate of the second moment (Adam) |
+
+```cpp
+model.set_optimizer({
+    .optmzr_type = OptimizerType::Adam,
+    .learning_rate = 0.01,
+    .decay = 1e-3,
+});
+```
+
+## Optimizer
+
+The base class. Owns the learning-rate schedule and knows how to apply a
+gradient step to a `Layer_Dense`.
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `explicit Optimizer(double learning_rate = 0.01, double decay = 0, double momentum = 0, double epsilon = 1e-7, double rho = 0.9, double beta_1 = 0.9, double beta_2 = 0.999)` | — | Constructs the optimizer |
+| `get_current_learning_rate()` | `double` | The learning rate used by the next update |
+| `virtual pre_update_params()` | `void` | Applies the learning-rate decay; called before each update |
+| `post_update_params()` | `void` | Advances the iteration counter |
+| `virtual update_params(Layer_Dense &layer) const = 0` | `void` | Applies a gradient step to a layer |
+| `virtual update_params(Layer_Dense &layer, bool include_regularization) const` | `void` | Same, optionally folding the regularization penalty into the gradient |
+| `static weight_gradient(const Layer_Dense &layer, size_t index, double gradient, bool include_regularization)` | `double` | The weight gradient with the penalty applied |
+| `static bias_gradient(const Layer_Dense &layer, size_t index, double gradient, bool include_regularization)` | `double` | The bias gradient with the penalty applied |
+
+## Optimizer_SGD
+
+Stochastic gradient descent with optional momentum.
+
+```cpp
+Optimizer_SGD(double learning_rate = 0.01, double decay = 0, double momentum = 0)
+```
+
+## Optimizer_Adagrad
+
+Scales each parameter by the square root of its accumulated squared gradient.
+
+```cpp
+Optimizer_Adagrad(double learning_rate = 0.01, double decay = 0, double epsilon = 1e-7)
+```
+
+## Optimizer_RMSprop
+
+Scales each parameter by the square root of an exponentially averaged squared
+gradient.
+
+```cpp
+Optimizer_RMSprop(double learning_rate = 0.001, double decay = 0, double epsilon = 1e-7, double rho = 0.9)
+```
+
+## Optimizer_Adam
+
+Combines momentum with per-parameter adaptive learning rates and applies bias
+correction.
+
+```cpp
+Optimizer_Adam(double learning_rate = 0.001, double decay = 0, double epsilon = 1e-7, double beta_1 = 0.9, double beta_2 = 0.999)
+```
+
+## The factory
+
+```cpp
+#include <cpptorch/optimizers/optimizer_registry.h>
+
+using namespace cpptorch;
+
+std::unique_ptr<Optimizer> optimizer =
+    make_optimizer(OptimizerType::Adam, {.optmzr_type = OptimizerType::Adam, .learning_rate = 0.01});
+```
+
+`make_optimizer()` throws `std::invalid_argument` when the type is unknown. See
+[Extending the library](/docs/extending) for the full recipe.
+
+<Callout title="Learning-rate decay">
+  `pre_update_params()` is called before every parameter update, so `decay` is
+  applied per iteration and the learning rate printed by `displayEpoch()` is
+  the one actually used.
+</Callout>

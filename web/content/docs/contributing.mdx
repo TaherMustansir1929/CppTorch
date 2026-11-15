@@ -1,0 +1,104 @@
+---
+title: Contributing
+description: How to build, test and propose a change to CppTorch.
+icon: GraduationCap
+---
+
+Contributions are welcome. This page is the short version of `CONTRIBUTING.md`
+in the repository root.
+
+## Set up
+
+```bash
+git clone https://github.com/TaherMustansir1929/CppTorch.git
+cd CppTorch
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+cd build && ctest --output-on-failure
+```
+
+CI runs the build and the test suite on Linux, macOS and Windows, and verifies
+that the installed package can be consumed through `find_package()`.
+
+## Add a feature without breaking the core
+
+The single most important rule: **a new component must not require changing
+the training loop in `model.h`.**
+
+To achieve that, always go through the extension points:
+
+1. **Create one self-contained header** for the component. It derives from the
+   family base class (`Activation`, `Loss` or `Optimizer`) and includes only
+   what it needs. It must not include `model.h`.
+2. **Add an enum value** to the family enum (`ActivationType`, `LossType`,
+   `OptimizerType`). The enum is the only identifier the core needs, so adding
+   a value is backwards compatible.
+3. **Register the implementation** in the family factory
+   (`activation_registry.h`, `loss_registry.h`, `optimizer_registry.h`).
+4. **Export it** by adding the header to `include/cpptorch/cpptorch.h`.
+5. **Test it.** Add a test file, register it in `tests/CMakeLists.txt`, and add
+   its name to the dispatcher in `tests/main.cpp`.
+
+What you must **not** touch:
+
+- `include/cpptorch/model.h` — the training loop. If a feature genuinely
+  requires changing it, open an issue first and explain why.
+- `include/cpptorch/core/` — the maths. Changes here affect everything and
+  need a strong numerical justification.
+- The public API of existing classes. Adding is fine; changing or removing a
+  signature is a breaking change and needs a major version bump.
+
+## Conventions
+
+- Everything public lives in `namespace cpptorch`.
+- Headers use `#pragma once` and are self-contained.
+- Public classes and methods carry Doxygen comments (`@brief`, `@param`,
+  `@return`, `@throws`).
+- Run `clang-format` with the repository's `.clang-format` before committing.
+- Prefer `*_into` variants in hot paths to avoid allocations.
+- New public API must be added to the API reference in the README and to
+  `CHANGELOG.md`.
+
+## Tests
+
+The test suite is a single binary with a dispatcher, so a single test can be
+run by hand:
+
+```bash
+./build/tests/cpptorch_tests full_pass_with_optimizer_adam
+```
+
+The examples are plain executables:
+
+```bash
+./build/examples/cpptorch_example_quickstart
+./build/examples/cpptorch_example_gender_audio_classification
+```
+
+## Pull request checklist
+
+- [ ] The build is clean and `ctest` passes.
+- [ ] New public API is documented and mentioned in the README.
+- [ ] `model.h` and `core/` are unchanged, unless that is the point of the PR.
+- [ ] `clang-format` has been run.
+- [ ] `CHANGELOG.md` has an entry under *Unreleased*.
+
+Please also read the [Code of Conduct](https://github.com/TaherMustansir1929/CppTorch/blob/main/CODE_OF_CONDUCT.md).
+
+## The documentation site
+
+This site lives in `web/` and is built with [Fumadocs](https://fumadocs.dev) on
+Next.js.
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Documentation pages live in `web/content/docs/` as MDX files. The sidebar order
+is controlled by the `meta.json` files next to them.
+
+## License
+
+CppTorch is released under the [MIT License](https://github.com/TaherMustansir1929/CppTorch/blob/main/LICENSE).

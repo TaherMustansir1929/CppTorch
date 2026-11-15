@@ -1,0 +1,118 @@
+---
+title: Matrix
+description: The dense, row-major matrix type with numpy-style broadcasting, plus the non-owning MatrixView.
+icon: GridFour
+---
+
+`cpptorch::Matrix` is a dense, row-major matrix of doubles. The data lives in a
+single flat, contiguous buffer so rows can be handed to BLAS without a copy.
+Arithmetic operators follow numpy's broadcasting rules: a matrix with a single
+row or a single column is broadcast against its operand.
+
+```cpp
+#include <cpptorch/core/matrix.h>
+
+using namespace cpptorch;
+
+Matrix a(2, 3, {1, 2, 3, 4, 5, 6});
+Matrix b = a + 1.0;   // scalar broadcast
+```
+
+## Constructors
+
+| Signature | Description |
+| --- | --- |
+| `Matrix(size_t rows, size_t cols)` | Zero-filled matrix of the given shape |
+| `Matrix()` | Empty 0×0 matrix |
+| `Matrix(size_t rows, size_t cols, std::initializer_list<double> list)` | From a brace-init list; the size must match |
+| `Matrix(size_t rows, size_t cols, const std::vector<double> &flat_data)` | From a flat buffer; the size must match |
+
+Copy and move constructors and assignment operators are defaulted.
+
+<Callout type="warn" title="Size mismatch throws">
+  The initializer-list and vector constructors throw `std::invalid_argument`
+  when the number of elements does not equal `rows * cols`.
+</Callout>
+
+## Accessors and mutators
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `shape()` | `std::tuple<size_t, size_t>` | The `(rows, cols)` pair |
+| `rows()` | `size_t` | Number of rows |
+| `cols()` | `size_t` | Number of columns |
+| `size()` | `size_t` | Total number of elements |
+| `data()` | `const double *` | Pointer to the first element |
+| `getFlatData()` | `const std::vector<double> &` | The underlying flat buffer |
+| `begin()`, `end()` | iterators | Iteration over the flat buffer (const and non-const) |
+| `operator[](size_t i)` | `double &` | Element at the flat index `i` |
+| `operator()(size_t r, size_t c)` | `double &` | Element at row `r`, column `c`; throws `std::out_of_range` |
+| `rows_view(size_t first_row, size_t row_count)` | `MatrixView` | Non-owning view of a row range; throws `std::out_of_range` |
+| `copy_from(const MatrixView &source)` | `void` | Replaces the contents with the view's |
+| `resize(size_t rows, size_t cols)` | `void` | Resizes and discards the previous contents |
+| `copy_rows_from(const Matrix &source, size_t first_row, size_t row_count)` | `void` | Copies a row range out of `source` |
+
+## Transformations
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `T()` | `Matrix` | The transpose |
+| `sq()` | `Matrix` | The element-wise square |
+| `display(int truncateX = -1, int truncateY = -1)` | `void` | Prints the matrix; `-1` prints everything |
+
+## Operators
+
+| Family | Operators | Semantics |
+| --- | --- | --- |
+| Matrix ⊕ matrix | `+` `-` `*` `/` `%` | Element-wise, with broadcasting. `%` is `fmod`. |
+| Matrix ⊕ scalar | `+` `-` `*` `/` `%` | Element-wise against a scalar |
+| Scalar ⊕ matrix | `+` `-` `*` `/` `%` | Element-wise against a scalar |
+| Matrix ⋚ matrix | `==` `!=` `<` `>` `<=` `>=` | Element-wise, returning `1.0` or `0.0` |
+| Matrix ⋚ scalar | `==` `!=` `<` `>` `<=` `>=` | Element-wise, returning `1.0` or `0.0` |
+| Scalar ⋚ matrix | `==` `!=` `<` `>` `<=` `>=` | Element-wise, returning `1.0` or `0.0` |
+| Matrix ⊕= matrix | `+=` `-=` `*=` `/=` `%=` | In-place element-wise |
+| Matrix ⊕= scalar | `+=` `-=` `*=` `/=` `%=` | In-place element-wise |
+
+### Broadcasting rules
+
+Two operands are compatible when, for each axis, the sizes are equal or one of
+them is `1`. The result has the maximum size on each axis.
+
+```cpp
+Matrix a(3, 4);
+Matrix b(1, 4);
+
+Matrix c = a + b;   // (3, 4) — b is broadcast down the rows
+Matrix d = a * 2.0; // (3, 4) — scalar broadcast
+```
+
+<Callout type="warn" title="In-place operators cannot resize">
+  `+=`, `-=`, `*=`, `/=` and `%=` keep the shape of the left-hand operand. If
+  the right-hand operand does not fit, `std::invalid_argument` is thrown.
+</Callout>
+
+## MatrixView
+
+A non-owning view over a contiguous range of rows of a `Matrix`. It lets the
+training loop process a batch without copying the data.
+
+| Member | Description |
+| --- | --- |
+| `MatrixView()` | Default constructor, an empty view |
+| `MatrixView(const double *data, size_t rows, size_t cols)` | Wraps an existing buffer |
+| `data()` | Pointer to the first element |
+| `rows()` | Number of rows |
+| `cols()` | Number of columns |
+| `size()` | Total number of elements |
+
+```cpp
+Matrix train(1000, 10);
+
+// A view of rows 100..199 — no copy is made.
+MatrixView batch = train.rows_view(100, 100);
+```
+
+<Callout title="Where views are used">
+  `Model::train()` builds a `MatrixView` for every mini-batch and passes it to
+  the first layer, so batching never copies the training data.
+</Callout>

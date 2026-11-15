@@ -1,0 +1,121 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/*
+ * CppTorch brand palette
+ * ----------------------
+ * Navy   #14213D — background (dark mode) / foreground (light mode)
+ * Cream  #F4EDE0 — background (light mode) / foreground (dark mode)
+ * Coral  #FF6B5B — accent
+ *
+ * Every surface, border and muted tone below is a mix of these three colours,
+ * so the site stays inside a strict three-colour palette.
+ */
+@theme {
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-heading), ui-serif, Georgia, Cambria, serif;
+}
+
+:root {
+  --cpptorch-navy: #14213d;
+  --cpptorch-cream: #f4ede0;
+  --cpptorch-coral: #ff6b5b;
+
+  --color-fd-background: #f4ede0; /* cream */
+  --color-fd-foreground: #14213d; /* navy */
+
+  --color-fd-muted: #e2dcd3; /* cream -> navy */
+  --color-fd-muted-foreground: #797d86; /* navy -> cream */
+
+  --color-fd-popover: #ebe5d9; /* cream -> navy */
+  --color-fd-popover-foreground: #14213d;
+
+  --color-fd-card: #ebe5d9; /* cream -> navy */
+  --color-fd-card-foreground: #14213d;
+
+  --color-fd-border: rgb(20 33 61 / 18%); /* navy, translucent */
+
+  --color-fd-primary: #ff6b5b; /* coral */
+  --color-fd-primary-foreground: #14213d;
+
+  --color-fd-secondary: #f5ddd0; /* cream -> coral */
+  --color-fd-secondary-foreground: #14213d;
+
+  --color-fd-accent: #ff6b5b; /* coral */
+  --color-fd-accent-foreground: #14213d;
+
+  --color-fd-ring: #ff6b5b; /* coral */
+  --color-fd-overlay: rgb(20 33 61 / 25%);
+}
+
+.dark {
+  --color-fd-background: #14213d; /* navy */
+  --color-fd-foreground: #f4ede0; /* cream */
+
+  --color-fd-muted: #242f48; /* navy -> cream */
+  --color-fd-muted-foreground: #acacac; /* cream -> navy */
+
+  --color-fd-popover: #2a354d; /* navy -> cream */
+  --color-fd-popover-foreground: #f4ede0;
+
+  --color-fd-card: #2a354d; /* navy -> cream */
+  --color-fd-card-foreground: #f4ede0;
+
+  --color-fd-border: rgb(244 237 224 / 18%); /* cream, translucent */
+
+  --color-fd-primary: #ff6b5b; /* coral */
+  --color-fd-primary-foreground: #14213d;
+
+  --color-fd-secondary: #333e54; /* navy -> cream */
+  --color-fd-secondary-foreground: #f4ede0;
+
+  --color-fd-accent: #ff6b5b; /* coral */
+  --color-fd-accent-foreground: #14213d;
+
+  --color-fd-ring: #ff6b5b; /* coral */
+  --color-fd-overlay: rgb(20 33 61 / 55%);
+}
+
+/* keep the sidebar on-brand in dark mode */
+.dark #nd-sidebar {
+  --color-fd-muted: #242f48;
+  --color-fd-secondary: #333e54;
+  --color-fd-muted-foreground: #acacac;
+}
+
+/*
+ * Typography
+ * ----------
+ * Serif for headings, Roboto for everything else.
+ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+  color: var(--cpptorch-navy) !important;
+}
+
+/*
+ * Shape
+ * -----
+ * The design uses 0% border radius: every corner is square.
+ */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}

@@ -1,5 +1,7 @@
 # CppTorch
 
+<img src="web/public/cpptorch.png" alt="CppTorch" width="64" height="64" align="right" />
+
 [![CI](https://github.com/TaherMustansir1929/CppTorch/actions/workflows/ci.yml/badge.svg)](https://github.com/TaherMustansir1929/CppTorch/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
@@ -16,9 +18,28 @@ provider (OpenBLAS recommended).
 
 ---
 
+## Documentation
+
+The full documentation is published as a website built with
+[Fumadocs](https://fumadocs.dev) on Next.js. It lives in the [`web/`](web)
+directory and covers the installation, the `Model` training API, the core array
+primitives, every layer, loss and optimizer, the architecture of the library,
+and how to extend it.
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+The site is then served at http://localhost:3000, with the docs at `/docs`.
+
+---
+
 ## Table of contents
 
 - [Features](#features)
+- [Documentation](#documentation)
 - [Requirements](#requirements)
 - [Installation](#installation)
   - [1. Build and install from source](#1-build-and-install-from-source)

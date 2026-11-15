@@ -1,0 +1,93 @@
+---
+title: Dense & Dropout
+description: Layer_Dense, Layer_Dropout and Layer_Wrapper — the layers a CppTorch model is built from.
+icon: Network
+---
+
+## Layer_Dense
+
+A fully connected layer: `output = inputs * weights + biases`. The layer owns
+its weights, biases and gradient buffers; `backward()` accumulates into
+`dweights` and `dbiases`, which the optimizer then consumes.
+
+### Public members
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `weights` | `Matrix` | Weights of shape `(n_inputs, n_neurons)` |
+| `biases` | `Matrix` | Biases of shape `(1, n_neurons)` |
+| `inputs` | `Matrix` | Cached inputs of the last forward pass |
+| `output` | `Matrix` | Output of the last forward pass |
+| `dweights` | `Matrix` | Gradient with respect to the weights |
+| `dinputs` | `Matrix` | Gradient with respect to the inputs |
+| `dbiases` | `Matrix` | Gradient with respect to the biases |
+| `weight_momentums`, `bias_momentums` | `Matrix` | Optimizer state: first moment |
+| `weight_cache`, `bias_cache` | `Matrix` | Optimizer state: accumulated squared gradients |
+| `weight_regularizer_l1`, `weight_regularizer_l2` | `double` | Penalties applied to the weights |
+| `bias_regularizer_l1`, `bias_regularizer_l2` | `double` | Penalties applied to the biases |
+
+### Methods
+
+| Method | Description |
+| --- | --- |
+| `Layer_Dense(size_t n_inputs, size_t n_neurons, double weight_regularizer_l1 = 0, double weight_regularizer_l2 = 0, double bias_regularizer_l1 = 0, double bias_regularizer_l2 = 0)` | Constructs the layer and initialises the weights with `randn * WEIGHT_SCALAR` |
+| `forward(const Matrix &inputs)` | Computes the forward pass and caches the inputs |
+| `backward(const Matrix &dvalues, bool apply_regularization = true)` | Computes the parameter and input gradients; adds the L1/L2 penalties when requested |
+
+```cpp
+using namespace cpptorch;
+
+Layer_Dense layer(10, 4);          // 10 inputs -> 4 neurons
+Matrix X(32, 10);
+
+layer.forward(X);
+// layer.output is (32, 4)
+```
+
+## Layer_Dropout
+
+Inverted dropout. During training each activation is zeroed with probability
+`rate` and the survivors are scaled by `1 / (1 - rate)`, so no rescaling is
+needed at inference time.
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `rate` | `double` | Probability of dropping an activation, stored as `1 - rate` |
+| `inputs` | `Matrix` | Cached inputs |
+| `output` | `Matrix` | Output of the last forward pass |
+| `binary_mask` | `Matrix` | The dropout mask |
+| `dinputs` | `Matrix` | Gradient with respect to the inputs |
+
+| Method | Description |
+| --- | --- |
+| `Layer_Dropout(double rate)` | Constructs the stage |
+| `forward(const Matrix &inputs, bool cache_inputs = true)` | Applies the dropout mask |
+| `backward(const Matrix &dvalues)` | Propagates the gradient through the mask |
+
+<Callout title="Inverted dropout">
+  Because the survivors are scaled during training, the expected output is
+  unchanged and inference needs no rescaling — the usual "dropout at test
+  time" bug simply does not exist here.
+</Callout>
+
+## Layer_Wrapper
+
+Bundles a dense layer, an optional dropout stage and an activation. A `Model`
+owns a sequence of wrappers; the wrapper exposes a single forward/backward pair
+to the training loop.
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `Layer_Wrapper(HyperParameters_Layer_Wrapper params)` | — | Constructs the layer from its hyper-parameters |
+| `output(bool is_training = true)` | `const Matrix &` | The layer output; dropout is bypassed when `is_training` is false |
+| `dinputs()` | `const Matrix &` | Gradient with respect to the layer input |
+| `dense()` | `Layer_Dense &` | The owned dense layer (const and non-const overloads) |
+| `activation_type()` | `ActivationType` | The activation applied by the layer |
+| `has_dropout()` | `bool` | Whether the layer applies dropout |
+| `forward(const Matrix &inputs, bool is_training = true)` | `void` | Runs the layer forward |
+| `backward(const Matrix &dvalues, bool apply_regularization = true)` | `void` | Computes the gradient with respect to the layer input |
+
+<Callout type="info" title="Forward order">
+  The wrapper runs the dense projection first, then the activation, then the
+  dropout mask. The backward pass runs in the opposite order.
+</Callout>

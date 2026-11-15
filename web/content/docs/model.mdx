@@ -1,0 +1,135 @@
+---
+title: Model
+description: The high-level training and evaluation API — building a network, training it and scoring it.
+icon: Brain
+---
+
+`cpptorch::Model` owns the layer sequence, the loss function and the optimizer,
+and implements the forward, backward and parameter-update passes. It is the
+entry point of the library for most users.
+
+## ModelType
+
+| Value | Meaning |
+| --- | --- |
+| `Classification` | Cross-entropy loss, accuracy metrics |
+| `Regression` | Mean squared error loss, RMSE metrics |
+
+## Constructor
+
+| Signature | Description |
+| --- | --- |
+| `explicit Model(ModelType model_type = ModelType::Regression)` | Builds a model with the default loss for the type: categorical cross-entropy for classification, mean squared error for regression. The default optimizer is SGD. |
+
+## Configuration
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `set_model_type(ModelType)` | `void` | Switches the type and resets the loss accordingly |
+| `model_type()` | `ModelType` | The current model type |
+| `set_loss(std::unique_ptr<Loss>)` | `void` | Replaces the loss; throws `std::invalid_argument` on a null pointer |
+| `loss()` | `Loss &` | The loss owned by the model |
+| `add_layer(HyperParameters_Layer_Wrapper)` | `void` | Appends a layer; layers run in the order they are added |
+| `set_optimizer(HyperParameters_Optimizer)` | `void` | Replaces the optimizer |
+
+## Inference
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `predict(const Matrix &X)` | `Matrix` | Forward pass without updating parameters; throws `std::runtime_error` when the model has no layers and `std::invalid_argument` when the feature count does not match |
+| `predict_classes(const Matrix &X)` | `Matrix` | The class index of every sample for classification models, the raw output for regression models |
+| `evaluate(const Matrix &X, const Matrix &y, bool verbose = true)` | `EvaluationResult` | Scores the model and optionally prints the metrics |
+
+## Model::EvaluationResult
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `loss` | `double` | Loss value; the mean squared error for regression models |
+| `accuracy` | `double` | Fraction of correctly classified samples; zero for regression models |
+| `rmse` | `double` | Root mean squared error; zero for classification models |
+| `display(ModelType type)` | `void` | Prints the metrics that suit the model type |
+
+## Training
+
+```cpp
+void train(const Matrix &X_train,
+           const Matrix &y_train,
+           size_t n_epochs,
+           const Matrix &X_val = Matrix(),
+           const Matrix &y_val = Matrix(),
+           size_t print_every = 1,
+           size_t batch_size = 0,
+           size_t validation_every = 1);
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `X_train`, `y_train` | The training data. Both must have the same non-zero row count. |
+| `n_epochs` | The number of epochs to run. |
+| `X_val`, `y_val` | An optional validation set. Leave them empty to skip validation. |
+| `print_every` | Print the progress every *n* epochs. `0` is rejected. |
+| `batch_size` | The mini-batch size. `0` trains on the full dataset in one batch. |
+| `validation_every` | Evaluate the validation set every *n* epochs. `0` is rejected. |
+
+Throws `std::runtime_error` when the model has no layers, no loss or no
+optimizer, and `std::invalid_argument` when the training data shapes do not
+match or an interval is zero.
+
+When the last layer uses a softmax activation and the loss is categorical
+cross-entropy, the fused gradient kernel is used instead of the generic path.
+
+### A full training run
+
+```cpp
+#include <cpptorch/cpptorch.h>
+
+int main()
+{
+    using namespace cpptorch;
+
+    auto [X, y] = Datasets::spiral_data(100, 3);
+
+    Model model(ModelType::Classification);
+    model.add_layer({.n_inputs = X.cols(), .n_neurons = 64, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 64, .n_neurons = 32, .activation_type = ActivationType::ReLU});
+    model.add_layer({.n_inputs = 32, .n_neurons = 3, .activation_type = ActivationType::Softmax});
+
+    model.set_optimizer({.optmzr_type = OptimizerType::Adam, .learning_rate = 0.01, .decay = 1e-3});
+
+    model.train(X, y,
+                /*n_epochs=*/100,
+                /*X_val=*/Matrix(),
+                /*y_val=*/Matrix(),
+                /*print_every=*/10,
+                /*batch_size=*/32,
+                /*validation_every=*/5);
+
+    auto result = model.evaluate(X, y);
+    std::cout << "Accuracy: " << result.accuracy * 100.0 << "%\n";
+
+    return 0;
+}
+```
+
+### What happens in an epoch
+
+1. **Forward** — `Layer_Wrapper::forward()` for each layer, on every
+   mini-batch. When the last layer uses a softmax activation and the loss is
+   categorical cross-entropy, a fused gradient kernel is used instead of the
+   generic path.
+2. **Backward** — `Layer_Wrapper::backward()` for each layer, in reverse order.
+3. **Update** — `Optimizer::update_params()` for each layer.
+
+Mini-batches are processed through a `MatrixView`, so batching never copies
+the training data.
+
+<Callout title="Regularization">
+  The L1/L2 penalties are folded into the parameter gradients by the optimizer
+  and are also reported as part of the epoch loss.
+</Callout>
+
+## Static helper
+
+| Method | Description |
+| --- | --- |
+| `static displayEpoch(size_t n_epochs, size_t epoch, double train_loss, double val_loss, double train_acc, double val_acc, double lr, bool has_val, ModelType model_type)` | Prints the progress of a single epoch to stdout |

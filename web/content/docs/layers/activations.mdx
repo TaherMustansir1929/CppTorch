@@ -1,0 +1,69 @@
+---
+title: Activations
+description: The Activation base class and the Linear, ReLU and Softmax implementations.
+icon: Sparkle
+---
+
+Activations live in `cpptorch/layers/activations/`. Every activation derives
+from `Activation` and is created through the `make_activation()` factory, which
+maps an `ActivationType` to a concrete implementation.
+
+## ActivationType
+
+| Value | Meaning |
+| --- | --- |
+| `Linear` | Identity activation, `f(x) = x` |
+| `ReLU` | Rectified linear unit, `f(x) = max(0, x)` |
+| `Softmax` | Softmax normalisation across the feature axis |
+
+## Activation
+
+The base class. Owns the `output`, `inputs` and `dinputs` buffers.
+
+| Method | Description |
+| --- | --- |
+| `virtual forward(const Matrix &inputs, bool cache_inputs = true) = 0` | Runs the activation forward |
+| `virtual backward(const Matrix &dvalues) = 0` | Computes the gradient with respect to the inputs |
+| `Activation()` | Default constructor |
+| `Activation(Matrix output, Matrix inputs, Matrix dinputs)` | Constructs with pre-allocated buffers |
+
+## Activation_Linear
+
+Identity activation, `f(x) = x`.
+
+## Activation_ReLU
+
+Rectified linear unit, `f(x) = max(0, x)`. The backward pass zeroes the
+gradient of the negative entries.
+
+## Activation_Softmax
+
+Softmax normalisation across the feature axis. The forward pass subtracts the
+row maximum before exponentiating, which keeps it numerically stable. The
+backward pass uses the identity
+
+```
+dinputs = s * (d - sum(s * d))
+```
+
+which avoids forming the Jacobian.
+
+<Callout title="Fused softmax + cross-entropy">
+  When the last layer of a classification model uses softmax and the loss is
+  categorical cross-entropy, `Model::train()` switches to a fused gradient
+  kernel that folds the softmax Jacobian into the loss gradient. It is
+  measurably faster than running the two steps separately.
+</Callout>
+
+## The factory
+
+```cpp
+#include <cpptorch/layers/activations/activation_registry.h>
+
+using namespace cpptorch;
+
+std::unique_ptr<Activation> activation = make_activation(ActivationType::ReLU);
+```
+
+`make_activation()` throws `std::invalid_argument` when the type is unknown.
+See [Extending the library](/docs/extending) for the full recipe.
