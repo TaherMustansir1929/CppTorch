@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+          - os: ubuntu-latest
+            compiler: clang
+          - os: macos-latest
+            compiler: clang
+          - os: windows-latest
+            compiler: msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install openblas
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: choco install vcpkg --install-directory ${{ env.VCPKG_INSTALLATION_ROOT }} -y
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'gcc' && 'g++' || matrix.compiler == 'clang' && 'clang++' || 'cl' }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ runner.os == 'Windows' && 'vcpkg.cmake' || '' }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        working-directory: ${{ runner.os == 'Windows' && 'build/Release' || 'build' }}
+        run: ctest --output-on-failure --build-config Release
+
+  install:
+    name: Install and consume the package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -Dcpptorch_BUILD_TESTS=OFF -Dcpptorch_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Install
+        run: cmake --install build --prefix /tmp/cpptorch-prefix
+
+      - name: Configure the consumer project
+        run: cmake -S .github/consumer -B /tmp/consumer-build -DCMAKE_PREFIX_PATH=/tmp/cpptorch-prefix
+
+      - name: Build the consumer project
+        run: cmake --build /tmp/consumer-build --parallel
+
+      - name: Run the consumer project
+        run: /tmp/consumer-build/consumer

@@ -1,0 +1,10 @@
+{
+  "name": "cpptorch",
+  "version": "0.1.0",
+  "description": "Minimal neural networks library with numpy-style array primitives",
+  "homepage": "https://github.com/TaherMustansir1929/CppTorch",
+  "license": "MIT",
+  "dependencies": [
+    "openblas"
+  ]
+}

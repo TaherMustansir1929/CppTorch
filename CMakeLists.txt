@@ -1,43 +1,111 @@
-﻿cmake_minimum_required(VERSION 3.20)
+﻿cmake_minimum_required(VERSION 3.21)
 
-set(PRODUCTION_BUILD OFF CACHE BOOL "Make this a production build" FORCE)
-
-project(CppTorch LANGUAGES CXX)
-
-file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+project(cpptorch
+    VERSION 0.1.0
+    DESCRIPTION "Minimal neural networks library with numpy-style array primitives"
+    LANGUAGES CXX
 )
 
-add_executable(CppTorch ${MY_SOURCES} main.cpp)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
-target_include_directories(CppTorch PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+option(cpptorch_BUILD_TESTS "Build the CppTorch test suite" ${PROJECT_IS_TOP_LEVEL})
+option(cpptorch_BUILD_EXAMPLES "Build the CppTorch examples" ${PROJECT_IS_TOP_LEVEL})
+option(cpptorch_INSTALL "Generate the CppTorch install rules" ${PROJECT_IS_TOP_LEVEL})
+
+# Directory holding the bundled CSV datasets. Forward slashes keep the path
+# usable inside a -D definition on every platform.
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/" CPPTORCH_RESOURCES_DIR)
+
+# ---------------------------------------------------------------------------
+# The library
+#
+# CppTorch is header-only, so the CMake target is an INTERFACE library. Every
+# consumer inherits the include path, the C++20 requirement and the BLAS /
+# OpenMP dependencies through the exported target.
+# ---------------------------------------------------------------------------
+add_library(cpptorch INTERFACE)
+add_library(CppTorch::cpptorch ALIAS cpptorch)
+
+target_compile_features(cpptorch INTERFACE cxx_std_20)
+
+target_include_directories(cpptorch INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_compile_features(CppTorch PRIVATE cxx_std_20)
+# OpenMP powers the parallel kernels.
+find_package(OpenMP REQUIRED)
 
-if(PRODUCTION_BUILD)
-	# setup the ASSETS_PATH macro to be in the root folder of your exe
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC RESOURCES_PATH="./resources/") 
+# A CBLAS provider is required for the dense matrix products.
+set(BLA_VENDOR OpenBLAS)
+find_package(BLAS REQUIRED)
 
-	# remove the option to debug asserts.
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC PRODUCTION_BUILD=1) 
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC DEVELOPMENT_BUILD=0) 
-
-else()
-	# This is useful to get an ASSETS_PATH in your IDE during development
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC RESOURCES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/resources/")
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC PRODUCTION_BUILD=0) 
-	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC DEVELOPMENT_BUILD=1) 
-
+# cblas.h lives in a separate development package and is not exposed by the
+# BLAS::BLAS imported target, so it is looked up on its own.
+find_path(CBLAS_INCLUDE_DIR
+    NAMES cblas.h
+    PATH_SUFFIXES openblas-pthread openblas x86_64-linux-gnu/openblas-pthread x86_64-linux-gnu
+)
+if(NOT CBLAS_INCLUDE_DIR)
+    message(FATAL_ERROR
+        "cblas.h was not found. Install the OpenBLAS development package or "
+        "point CBLAS_INCLUDE_DIR at the directory that contains it.")
 endif()
 
-if (POLICY CMP0141)
-    cmake_policy(SET CMP0141 NEW)
+target_include_directories(cpptorch SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${CBLAS_INCLUDE_DIR}>
+)
 
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
-        "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,
-        $<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,
-        $<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>"
+target_link_libraries(cpptorch INTERFACE
+    OpenMP::OpenMP_CXX
+    BLAS::BLAS
+)
+
+# ---------------------------------------------------------------------------
+# Subdirectories
+# ---------------------------------------------------------------------------
+if(cpptorch_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+if(cpptorch_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+# ---------------------------------------------------------------------------
+# Installation
+# ---------------------------------------------------------------------------
+if(cpptorch_INSTALL)
+    install(TARGETS cpptorch EXPORT cpptorchTargets)
+
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/cpptorch"
+            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+            FILES_MATCHING PATTERN "*.h")
+
+    install(EXPORT cpptorchTargets
+            FILE cpptorchTargets.cmake
+            NAMESPACE CppTorch::
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cpptorch")
+
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpptorchConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/cpptorchConfig.cmake"
+        INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cpptorch"
     )
+
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/cpptorchConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    install(FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/cpptorchConfig.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/cpptorchConfigVersion.cmake"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cpptorch")
 endif()

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/TaherMustansir1929/CppTorch/discussions
+    about: Ask a usage question or start a discussion about a new feature.
+  - name: Contribution guide
+    url: https://github.com/TaherMustansir1929/CppTorch/blob/main/CONTRIBUTING.md
+    about: How to build, test and extend the library.
