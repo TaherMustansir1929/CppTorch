@@ -37,7 +37,7 @@ export interface SlideDefinition {
 export const UNIVERSITY_NAME = 'FAST NUCES';
 export const CLASS_SECTION = 'BAI-3C';
 export const DOCS_SITE_URL = 'https://cpptorch.vercel.app';
-export const GITHUB_REPO_URL = 'https://github.com/cpptorch/cpptorch';
+export const GITHUB_REPO_URL = 'https://github.com/TaherMustansir1929/CppTorch';
 
 export const AUTHORS: AuthorEntry[] = [
   { name: 'Taher', roll: '25K-0119', role: 'Team Lead' },
@@ -350,7 +350,7 @@ make_activation(ActivationType type) {
     layout: 'closing',
     bigIdea: 'CppTorch — A Minimal Neural-Networks Library in C++20',
     authors: AUTHORS,
-    codeSnippet: 'github.com/cpptorch/cpptorch  ·  include/cpptorch/cpptorch.h',
+    codeSnippet: 'github.com/TaherMustansir1929/CppTorch  ·  include/cpptorch/cpptorch.h',
     transitionNote: 'End of presentation. Use Replay Deck to return to Slide 1.',
     interactionHint: 'Click the CppTorch 3D emblem or select a team member to emit their colored signal burst.',
   },
