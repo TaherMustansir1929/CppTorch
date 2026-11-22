@@ -4,57 +4,16 @@
 #include <array>
 #include <charconv>
 #include <cmath>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <limits>
 #include <numeric>
 #include <random>
-#include <set>
-#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace
 {
-
-struct FlowField
-{
-    double x = 0.0;
-    double y = 0.0;
-    double omega = 0.0;
-    double u = 0.0;
-    double v = 0.0;
-};
-
-struct CsvRecord
-{
-    int sample = 0;
-    int frame = 0;
-    int ix = 0;
-    int iy = 0;
-    double time = 0.0;
-    FlowField field;
-};
-
-struct Dataset
-{
-    size_t sample_count = 0;
-    size_t frame_count = 0;
-    size_t nx = 0;
-    size_t ny = 0;
-    std::vector<double> times;
-    std::vector<double> x_coordinates;
-    std::vector<double> y_coordinates;
-    std::vector<FlowField> fields;
-
-    [[nodiscard]] size_t index(size_t sample, size_t frame, size_t cell) const
-    {
-        return (sample * frame_count + frame) * nx * ny + cell;
-    }
-};
 
 struct TargetScale
 {
@@ -103,183 +62,10 @@ struct ResidualMetrics
     size_t count = 0;
 };
 
-[[nodiscard]] std::vector<std::string> split_csv_line(const std::string &line)
-{
-    std::vector<std::string> columns;
-    std::stringstream stream(line);
-    std::string value;
-    while (std::getline(stream, value, ','))
-        columns.push_back(value);
-    return columns;
-}
-
-[[nodiscard]] int parse_integer(const std::string &value, const char *column_name)
-{
-    int result = 0;
-    const char *begin = value.data();
-    const char *end = begin + value.size();
-    const auto parsed = std::from_chars(begin, end, result);
-    if (parsed.ec != std::errc{} || parsed.ptr != end)
-        throw std::runtime_error(std::string("Invalid integer in CSV column '") + column_name + "'.");
-    return result;
-}
-
-[[nodiscard]] double parse_number(const std::string &value, const char *column_name)
-{
-    size_t parsed_length = 0;
-    const double result = std::stod(value, &parsed_length);
-    if (parsed_length != value.size() || !std::isfinite(result))
-        throw std::runtime_error(std::string("Invalid number in CSV column '") + column_name + "'.");
-    return result;
-}
-
-[[nodiscard]] Dataset load_dataset(const std::filesystem::path &path)
-{
-    std::ifstream input(path);
-    if (!input)
-        throw std::runtime_error("Could not open dataset: " + path.string());
-
-    std::string line;
-    if (!std::getline(input, line))
-        throw std::runtime_error("Dataset is empty: " + path.string());
-
-    const std::vector<std::string> header = split_csv_line(line);
-    std::unordered_map<std::string, size_t> column_index;
-    for (size_t i = 0; i < header.size(); ++i)
-        column_index.emplace(header[i], i);
-
-    const std::array<std::string, 10> required_columns = {
-        "sample", "frame", "t", "ix", "iy", "x", "y", "w", "u", "v"};
-    for (const std::string &name : required_columns)
-        if (column_index.find(name) == column_index.end())
-            throw std::runtime_error("Dataset is missing required column '" + name + "'.");
-
-    std::vector<CsvRecord> records;
-    std::set<int> sample_ids;
-    std::set<int> frame_ids;
-    std::set<int> x_indices;
-    std::set<int> y_indices;
-
-    while (std::getline(input, line))
-    {
-        if (line.empty())
-            continue;
-        const std::vector<std::string> values = split_csv_line(line);
-        if (values.size() != header.size())
-            throw std::runtime_error("Dataset row has a different number of columns than its header.");
-
-        const auto value_at = [&](const char *name) -> const std::string & {
-            return values[column_index.at(name)];
-        };
-
-        CsvRecord record;
-        record.sample = parse_integer(value_at("sample"), "sample");
-        record.frame = parse_integer(value_at("frame"), "frame");
-        record.ix = parse_integer(value_at("ix"), "ix");
-        record.iy = parse_integer(value_at("iy"), "iy");
-        record.time = parse_number(value_at("t"), "t");
-        record.field.x = parse_number(value_at("x"), "x");
-        record.field.y = parse_number(value_at("y"), "y");
-        record.field.omega = parse_number(value_at("w"), "w");
-        record.field.u = parse_number(value_at("u"), "u");
-        record.field.v = parse_number(value_at("v"), "v");
-
-        if (record.sample < 0 || record.frame < 0 || record.ix < 0 || record.iy < 0)
-            throw std::runtime_error("Dataset indices must be non-negative.");
-
-        sample_ids.insert(record.sample);
-        frame_ids.insert(record.frame);
-        x_indices.insert(record.ix);
-        y_indices.insert(record.iy);
-        records.push_back(record);
-    }
-
-    if (records.empty() || sample_ids.empty() || frame_ids.size() < 3 || x_indices.size() < 3 ||
-        y_indices.size() < 3)
-        throw std::runtime_error("Dataset must contain samples, at least three frames, and a 3x3 grid.");
-
-    const auto contiguous_indices = [](const std::set<int> &indices) {
-        int expected = 0;
-        for (const int index : indices)
-            if (index != expected++)
-                return false;
-        return true;
-    };
-    if (!contiguous_indices(x_indices) || !contiguous_indices(y_indices))
-        throw std::runtime_error("Grid indices must start at zero and be contiguous.");
-
-    Dataset dataset;
-    dataset.sample_count = sample_ids.size();
-    dataset.frame_count = frame_ids.size();
-    dataset.nx = x_indices.size();
-    dataset.ny = y_indices.size();
-    const size_t grid_size = dataset.nx * dataset.ny;
-    const size_t expected_rows = dataset.sample_count * dataset.frame_count * grid_size;
-    if (records.size() != expected_rows)
-        throw std::runtime_error("Dataset does not contain exactly one complete grid for each sample and frame.");
-
-    dataset.fields.resize(expected_rows);
-    dataset.times.resize(dataset.frame_count, std::numeric_limits<double>::quiet_NaN());
-    dataset.x_coordinates.resize(dataset.nx, std::numeric_limits<double>::quiet_NaN());
-    dataset.y_coordinates.resize(dataset.ny, std::numeric_limits<double>::quiet_NaN());
-    std::vector<bool> seen(expected_rows, false);
-
-    const std::vector<int> ordered_samples(sample_ids.begin(), sample_ids.end());
-    const std::vector<int> ordered_frames(frame_ids.begin(), frame_ids.end());
-    for (const CsvRecord &record : records)
-    {
-        const size_t sample = static_cast<size_t>(
-            std::lower_bound(ordered_samples.begin(), ordered_samples.end(), record.sample) - ordered_samples.begin());
-        const size_t frame = static_cast<size_t>(
-            std::lower_bound(ordered_frames.begin(), ordered_frames.end(), record.frame) - ordered_frames.begin());
-        const size_t ix = static_cast<size_t>(record.ix);
-        const size_t iy = static_cast<size_t>(record.iy);
-        const size_t cell = iy * dataset.nx + ix;
-        const size_t point_index = dataset.index(sample, frame, cell);
-
-        if (seen[point_index])
-            throw std::runtime_error("Dataset contains a duplicate sample/frame/grid location.");
-        seen[point_index] = true;
-        dataset.fields[point_index] = record.field;
-
-        if (std::isnan(dataset.times[frame]))
-            dataset.times[frame] = record.time;
-        else if (std::abs(dataset.times[frame] - record.time) > 1e-10)
-            throw std::runtime_error("Rows in the same frame have inconsistent timestamps.");
-
-        if (std::isnan(dataset.x_coordinates[ix]))
-            dataset.x_coordinates[ix] = record.field.x;
-        else if (std::abs(dataset.x_coordinates[ix] - record.field.x) > 1e-10)
-            throw std::runtime_error("X coordinates are inconsistent across grid rows.");
-
-        if (std::isnan(dataset.y_coordinates[iy]))
-            dataset.y_coordinates[iy] = record.field.y;
-        else if (std::abs(dataset.y_coordinates[iy] - record.field.y) > 1e-10)
-            throw std::runtime_error("Y coordinates are inconsistent across grid rows.");
-    }
-
-    if (std::find(seen.begin(), seen.end(), false) != seen.end())
-        throw std::runtime_error("Dataset is missing one or more sample/frame/grid locations.");
-
-    const auto grid_spacing = [](const std::vector<double> &coordinates, const char *axis) {
-        const double spacing = coordinates[1] - coordinates[0];
-        if (!(spacing > 0.0))
-            throw std::runtime_error(std::string("The ") + axis + " grid must be increasing.");
-        for (size_t i = 1; i < coordinates.size(); ++i)
-            if (std::abs((coordinates[i] - coordinates[i - 1]) - spacing) > 1e-8)
-                throw std::runtime_error(std::string("The ") + axis + " grid must be uniformly spaced.");
-        return spacing;
-    };
-    (void)grid_spacing(dataset.x_coordinates, "x");
-    (void)grid_spacing(dataset.y_coordinates, "y");
-
-    return dataset;
-}
-
 [[nodiscard]] double parse_positive_double(const char *text, const char *name)
 {
     const std::string value(text);
-    const double result = parse_number(value, name);
+    const double result = std::stod(value);
     if (result <= 0.0)
         throw std::runtime_error(std::string(name) + " must be greater than zero.");
     return result;
@@ -295,8 +81,8 @@ struct ResidualMetrics
     return result;
 }
 
-[[nodiscard]] ResidualMetrics calculate_residuals(const Dataset &dataset,
-                                                  const std::vector<FlowField> &fields,
+[[nodiscard]] ResidualMetrics calculate_residuals(const cpptorch::NavierStokesDataset &dataset,
+                                                  const std::vector<cpptorch::NavierStokesFlowField> &fields,
                                                   size_t first_validation_frame,
                                                   double viscosity)
 {
@@ -325,14 +111,14 @@ struct ResidualMetrics
                     const size_t ix_before = (ix + dataset.nx - 1) % dataset.nx;
                     const size_t ix_after = (ix + 1) % dataset.nx;
                     const size_t cell = iy * dataset.nx + ix;
-                    const FlowField &center = fields[dataset.index(sample, frame, cell)];
-                    const FlowField &left = fields[dataset.index(sample, frame, iy * dataset.nx + ix_before)];
-                    const FlowField &right = fields[dataset.index(sample, frame, iy * dataset.nx + ix_after)];
-                    const FlowField &below = fields[dataset.index(sample, frame, iy_before * dataset.nx + ix)];
-                    const FlowField &above = fields[dataset.index(sample, frame, iy_after * dataset.nx + ix)];
-                    const FlowField &previous =
+                    const auto &center = fields[dataset.index(sample, frame, cell)];
+                    const auto &left = fields[dataset.index(sample, frame, iy * dataset.nx + ix_before)];
+                    const auto &right = fields[dataset.index(sample, frame, iy * dataset.nx + ix_after)];
+                    const auto &below = fields[dataset.index(sample, frame, iy_before * dataset.nx + ix)];
+                    const auto &above = fields[dataset.index(sample, frame, iy_after * dataset.nx + ix)];
+                    const auto &previous =
                         fields[dataset.index(sample, frame - 1, cell)];
-                    const FlowField &next =
+                    const auto &next =
                         fields[dataset.index(sample, frame + 1, cell)];
 
                     const double u_x = (right.u - left.u) * inverse_2dx;
@@ -380,13 +166,12 @@ int main(int argc, char **argv)
         if (argc > 4)
             throw std::runtime_error("Usage: Navier-Stokes [dataset.csv] [epochs] [kinematic_viscosity]");
 
-        const std::filesystem::path dataset_path =
-            argc > 1 ? std::filesystem::path(argv[1])
-                     : std::filesystem::path(CPPTORCH_DEFAULT_RESOURCES_PATH) / "ns2d_subset.csv";
+        const std::string dataset_filename = argc > 1 ? argv[1] : "ns2d_subset.csv";
         const size_t epochs = argc > 2 ? parse_positive_size(argv[2], "epochs") : 30;
         const double viscosity = argc > 3 ? parse_positive_double(argv[3], "kinematic_viscosity") : 0.01;
 
-        const Dataset dataset = load_dataset(dataset_path);
+        const cpptorch::NavierStokesDataset dataset =
+            cpptorch::Datasets::load_navier_stokes(dataset_filename);
         const size_t grid_size = dataset.nx * dataset.ny;
         const size_t training_frame_count = std::max<size_t>(2, (dataset.frame_count * 4 + 2) / 5);
         if (training_frame_count >= dataset.frame_count)
@@ -405,7 +190,7 @@ int main(int argc, char **argv)
         std::vector<double> test_features(test_rows * 3);
         std::vector<double> test_targets(test_rows * 3);
 
-        const auto write_row = [](const FlowField &field,
+        const auto write_row = [](const cpptorch::NavierStokesFlowField &field,
                                   double time,
                                   std::vector<double> &features,
                                   std::vector<double> &targets,
@@ -462,7 +247,7 @@ int main(int argc, char **argv)
         model.set_optimizer(
             {.optmzr_type = cpptorch::OptimizerType::Adam, .learning_rate = 0.001, .decay = 1e-5});
 
-        std::cout << "Dataset: " << dataset_path.string() << "\n"
+        std::cout << "Dataset: " << dataset_filename << "\n"
                   << "Samples: " << dataset.sample_count << ", grid: " << dataset.nx << 'x' << dataset.ny
                   << ", frames: " << dataset.frame_count << '\n'
                   << "Time-ordered split: " << training_frame_count << '/' << dataset.frame_count
@@ -510,7 +295,7 @@ int main(int argc, char **argv)
                       << ", MAE=" << absolute_error_sum[column] / test_sample_count << '\n';
         }
 
-        std::vector<FlowField> predicted_fields(dataset.fields.size());
+        std::vector<cpptorch::NavierStokesFlowField> predicted_fields(dataset.fields.size());
         for (size_t sample = 0; sample < dataset.sample_count; ++sample)
             for (size_t frame = 0; frame < dataset.frame_count; ++frame)
             {
@@ -530,7 +315,7 @@ int main(int argc, char **argv)
                 const cpptorch::Matrix frame_predictions = model.predict(frame_features);
                 for (size_t cell = 0; cell < grid_size; ++cell)
                 {
-                    FlowField &prediction = predicted_fields[dataset.index(sample, frame, cell)];
+                    auto &prediction = predicted_fields[dataset.index(sample, frame, cell)];
                     prediction.x = dataset.fields[dataset.index(sample, frame, cell)].x;
                     prediction.y = dataset.fields[dataset.index(sample, frame, cell)].y;
                     prediction.omega = target_scaler.restore(frame_predictions(cell, 0), 0);

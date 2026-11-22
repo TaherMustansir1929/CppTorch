@@ -56,6 +56,7 @@ The site is then served at http://localhost:3000, with the docs at `/docs`.
   - [The code](#the-code)
   - [Regression example](#regression-example)
 - [Project layout](#project-layout)
+- [Running the examples](#running-the-examples)
 - [API reference](#api-reference)
   - [Enums and configuration structs](#enums-and-configuration-structs)
   - [Core: `Matrix`](#core-matrix)
@@ -95,7 +96,8 @@ The site is then served at http://localhost:3000, with the docs at `/docs`.
   subdirectory, or a single copied header folder.
 - **Tested** — a 15-test CTest suite that runs on Linux, macOS and Windows.
 - **Datasets** — the California housing and Kaggle gender audio datasets ship
-  with the library, along with synthetic spiral and sine generators.
+  with the library, along with synthetic spiral and sine generators, plus a
+  2D Navier-Stokes flow-field loader and an SVM benchmark loader.
 
 ---
 
@@ -360,6 +362,58 @@ int main()
 }
 ```
 
+## Running the examples
+
+CppTorch ships with several example programs in `examples/`. Build them by
+enabling `cpptorch_BUILD_EXAMPLES` (ON by default for top-level builds):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -Dcpptorch_BUILD_EXAMPLES=ON
+cmake --build build -j
+```
+
+The examples resolve the bundled CSV datasets through `cpptorch::Resources`
+(see [Locating the bundled datasets](#locating-the-bundled-datasets)). When
+built in-tree, `CPPTORCH_DEFAULT_RESOURCES_PATH` is set automatically, so you
+can run them straight from the build directory:
+
+| Example | Command | Description |
+|---|---|---|
+| `cpptorch_example_quickstart` | `./build/examples/cpptorch_example_quickstart` | 3-class spiral classification |
+| `cpptorch_example_gender_audio_classification` | `./build/examples/cpptorch_example_gender_audio_classification` | Kaggle gender audio classification |
+| `cpptorch_example_navier_stokes` | `./build/examples/cpptorch_example_navier_stokes [dataset.csv] [epochs] [viscosity]` | 2D Navier-Stokes flow-field regression with PDE residual diagnostics |
+| `cpptorch_example_svm` | `./build/examples/cpptorch_example_svm [dataset.csv] [epochs] [learning_rate]` | Support Vector Machine implemented with a neural network |
+
+### SVM example
+
+The SVM example (`examples/svm.cpp`) trains a neural network
+(`2 → 32 ReLU → 16 ReLU → 1 Linear`) to approximate an SVM decision boundary
+on `resources/svm_dataset.csv` (features `x1, x2`, labels `+1/-1`). It reports
+training loss every epoch, then evaluates on a held-out 20% test set with
+accuracy, precision, recall, F1-score, MSE, RMSE and a confusion matrix:
+
+```bash
+./build/examples/cpptorch_example_svm
+./build/examples/cpptorch_example_svm resources/svm_dataset.csv 200 0.01
+```
+
+The model uses MSE loss on `+1/-1` targets, so predicting `> 0` means class
+`+1` and predicting `<= 0` means class `-1`.
+
+### Navier-Stokes example
+
+The Navier-Stokes example (`examples/Navier-Stokes.cpp`) trains a regression
+network to predict vorticity `(omega, u, v)` from `(x, y, t)` on the bundled
+`resources/ns2d_subset.csv`. It uses a time-ordered train/test split and
+reports per-field R², RMSE and MAE on held-out frames, plus PDE residual
+diagnostics (continuity and vorticity-transport RMS) comparing the reference
+field against the network's predictions:
+
+```bash
+./build/examples/cpptorch_example_navier_stokes
+./build/examples/cpptorch_example_navier_stokes resources/ns2d_subset.csv 30 0.01
+```
+
 ---
 
 ## Project layout
@@ -404,7 +458,9 @@ CppTorch/
 ├── examples/
 │   ├── CMakeLists.txt
 │   ├── quickstart.cpp
-│   └── gender_audio_classification.cpp
+│   ├── gender_audio_classification.cpp
+│   ├── Navier-Stokes.cpp
+│   └── svm.cpp
 ├── tests/                       Test suite (CTest)
 │   ├── CMakeLists.txt
 │   ├── main.cpp                 Test dispatcher
@@ -925,10 +981,26 @@ sets. Every loader accepts a `filename` argument and resolves it through
 | `california_housing_data(...)` | same | Alias of `california_housing` |
 | `housing_data(...)` | same | Alias of `california_housing` |
 | `gender_audio_data(const std::string &filename = "gender_audio_features_kaggle.csv", double train_ratio = 0.7, double test_ratio = 0.15, double val_ratio = 0.15, bool shuffle = true, unsigned int seed = 42)` | `tuple<Matrix, Matrix, Matrix, Matrix, Matrix, Matrix>` | The Kaggle gender audio dataset: 43 acoustic features and a binary label. Returns `(X_train, y_train, X_test, y_test, X_val, y_val)`. |
+| `load_navier_stokes(const std::string &filename = "ns2d_subset.csv")` | `NavierStokesDataset` | The 2D Navier-Stokes flow-field dataset (columns `sample, frame, t, ix, iy, x, y, w, u, v`). Returns a `NavierStokesDataset` with `fields`, `times`, `x_coordinates`, `y_coordinates` and grid dimensions. |
+| `svm_data(const std::string &filename = "svm_dataset.csv")` | `tuple<Matrix, Matrix>` | The SVM benchmark dataset with columns `x1, x2, label (+1/-1)`. Returns `(X, y)` with `X` of shape `(n_samples, 2)` and `y` of shape `(n_samples, 1)` holding ±1 labels. |
 
 All loaders throw `std::runtime_error` when the file cannot be opened or
 contains no usable rows, and `std::invalid_argument` when the split ratios sum
 to zero.
+
+#### `NavierStokesDataset`
+
+Holds the parsed Navier-Stokes spatiotemporal grid:
+
+| Member | Type | Description |
+|---|---|---|
+| `sample_count` | `size_t` | Number of samples |
+| `frame_count` | `size_t` | Number of time frames |
+| `nx`, `ny` | `size_t` | Grid dimensions |
+| `times` | `vector<double>` | Timestamp per frame |
+| `x_coordinates`, `y_coordinates` | `vector<double>` | Grid coordinates |
+| `fields` | `vector<NavierStokesFlowField>` | Flow fields (x, y, omega, u, v) |
+| `index(sample, frame, cell)` | `size_t` | Linear index into `fields` |
 
 ---
 
@@ -1094,6 +1166,8 @@ The examples are plain executables:
 ```bash
 ./build/examples/cpptorch_example_quickstart
 ./build/examples/cpptorch_example_gender_audio_classification
+./build/examples/cpptorch_example_navier_stokes
+./build/examples/cpptorch_example_svm
 ```
 
 The API documentation is generated with Doxygen:

@@ -249,6 +249,34 @@ The examples are plain executables:
 ```bash
 ./build/examples/cpptorch_example_quickstart
 ./build/examples/cpptorch_example_gender_audio_classification
+./build/examples/cpptorch_example_navier_stokes
+./build/examples/cpptorch_example_svm
+```
+
+### Running the SVM example
+
+The SVM example (`examples/svm.cpp`) trains a neural network
+(`2 → 32 ReLU → 16 ReLU → 1 Linear`) to approximate an SVM decision boundary
+on `resources/svm_dataset.csv` (features `x1, x2`, labels `+1/-1`). It reports
+training loss every epoch, then evaluates on a held-out 20% test set with
+accuracy, precision, recall, F1-score, MSE, RMSE and a confusion matrix:
+
+```bash
+./build/examples/cpptorch_example_svm
+./build/examples/cpptorch_example_svm resources/svm_dataset.csv 200 0.01
+```
+
+### Running the Navier-Stokes example
+
+The Navier-Stokes example (`examples/Navier-Stokes.cpp`) trains a regression
+network to predict vorticity `(omega, u, v)` from `(x, y, t)` on the bundled
+`resources/ns2d_subset.csv`. It uses a time-ordered train/test split and
+reports per-field R², RMSE and MAE on held-out frames, plus PDE residual
+diagnostics comparing the reference field against the network's predictions:
+
+```bash
+./build/examples/cpptorch_example_navier_stokes
+./build/examples/cpptorch_example_navier_stokes resources/ns2d_subset.csv 30 0.01
 ```
 
 The API documentation is generated with Doxygen:

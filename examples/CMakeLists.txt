@@ -7,8 +7,13 @@ target_link_libraries(cpptorch_example_gender_audio_classification PRIVATE CppTo
 add_executable(cpptorch_example_navier_stokes Navier-Stokes.cpp)
 target_link_libraries(cpptorch_example_navier_stokes PRIVATE CppTorch::cpptorch)
 
+add_executable(cpptorch_example_svm svm.cpp)
+target_link_libraries(cpptorch_example_svm PRIVATE CppTorch::cpptorch)
+
 # Point the examples at the in-tree dataset directory.
 target_compile_definitions(cpptorch_example_gender_audio_classification PRIVATE
     CPPTORCH_DEFAULT_RESOURCES_PATH="${CPPTORCH_RESOURCES_DIR}")
 target_compile_definitions(cpptorch_example_navier_stokes PRIVATE
+    CPPTORCH_DEFAULT_RESOURCES_PATH="${CPPTORCH_RESOURCES_DIR}")
+target_compile_definitions(cpptorch_example_svm PRIVATE
     CPPTORCH_DEFAULT_RESOURCES_PATH="${CPPTORCH_RESOURCES_DIR}")

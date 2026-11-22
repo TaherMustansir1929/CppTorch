@@ -1,6 +1,6 @@
 ---
 title: Datasets
-description: Loading the bundled California housing and Kaggle gender audio datasets, plus feature scaling and resource lookup.
+description: Loading the bundled California housing, Kaggle gender audio, Navier-Stokes flow-field and SVM datasets, plus feature scaling and resource lookup.
 icon: Database
 ---
 
@@ -19,10 +19,26 @@ resolves it through `cpptorch::Resources`.
 | `california_housing_data(...)` | same | Alias of `california_housing` |
 | `housing_data(...)` | same | Alias of `california_housing` |
 | `gender_audio_data(const std::string &filename = "gender_audio_features_kaggle.csv", double train_ratio = 0.7, double test_ratio = 0.15, double val_ratio = 0.15, bool shuffle = true, unsigned int seed = 42)` | `tuple<Matrix, Matrix, Matrix, Matrix, Matrix, Matrix>` | The Kaggle gender audio dataset: 43 acoustic features and a binary label. Returns `(X_train, y_train, X_test, y_test, X_val, y_val)`. |
+| `load_navier_stokes(const std::string &filename = "ns2d_subset.csv")` | `NavierStokesDataset` | The 2D Navier-Stokes flow-field dataset (columns `sample, frame, t, ix, iy, x, y, w, u, v`). Returns a `NavierStokesDataset` with `fields`, `times`, `x_coordinates`, `y_coordinates` and grid dimensions. |
+| `svm_data(const std::string &filename = "svm_dataset.csv")` | `tuple<Matrix, Matrix>` | The SVM benchmark dataset with columns `x1, x2, label (+1/-1)`. Returns `(X, y)` with `X` of shape `(n_samples, 2)` and `y` of shape `(n_samples, 1)` holding ±1 labels. |
 
 All loaders throw `std::runtime_error` when the file cannot be opened or
 contains no usable rows, and `std::invalid_argument` when the split ratios sum
 to zero.
+
+#### `NavierStokesDataset`
+
+Holds the parsed Navier-Stokes spatiotemporal grid:
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `sample_count` | `size_t` | Number of samples |
+| `frame_count` | `size_t` | Number of time frames |
+| `nx`, `ny` | `size_t` | Grid dimensions |
+| `times` | `vector<double>` | Timestamp per frame |
+| `x_coordinates`, `y_coordinates` | `vector<double>` | Grid coordinates |
+| `fields` | `vector<NavierStokesFlowField>` | Flow fields (x, y, omega, u, v) |
+| `index(sample, frame, cell)` | `size_t` | Linear index into `fields` |
 
 ## Synthetic data
 
