@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #f4ede0;
+  --color-cream-deep: #ebe2d0;
+  --color-navy: #14213d;
+  --color-navy-soft: #1e3159;
+  --color-coral: #ff6b5b;
+  --color-coral-deep: #d94838;
+  --font-sans: "Roboto", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    background-color: #f4ede0;
+    color: #14213d;
+    font-family: "Roboto", system-ui, -apple-system, sans-serif;
+  }
+
+  * {
+    border-radius: 0px;
+  }
+
+  button[class*="border"]:not(:disabled),
+  a[data-clickable="true"] {
+    box-shadow: 0 3px 0 rgba(20, 33, 61, 0.2), 0 4px 10px rgba(20, 33, 61, 0.1);
+    transition: transform 140ms ease, box-shadow 140ms ease, background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+
+  button[class*="border"]:not(:disabled):hover,
+  a[data-clickable="true"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 0 rgba(20, 33, 61, 0.28), 0 6px 14px rgba(20, 33, 61, 0.14);
+  }
+
+  button[class*="border"]:not(:disabled):active,
+  a[data-clickable="true"]:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgba(20, 33, 61, 0.22);
+  }
+
+  button:disabled {
+    box-shadow: none;
+  }
+}
+
+.font-code {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom sharp range slider matching Navy + Coral system */
+input[type="range"].cpptorch-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(20, 33, 61, 0.22);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"].cpptorch-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #ff6b5b;
+  border: 2px solid #14213d;
+  cursor: pointer;
+}
+
+input[type="range"].cpptorch-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #ff6b5b;
+  border: 2px solid #14213d;
+  border-radius: 0px;
+  cursor: pointer;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "CppTorch Presentation",
+  "description": "Interactive 3D slide deck for CppTorch — a minimal header-only C++20 neural networks library, built with React, Three.js, and GSAP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

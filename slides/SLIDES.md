@@ -59,6 +59,12 @@ CppTorch is a header-only, minimal neural-networks library written in C++20. It 
 - Tagline: minimal neural-networks library in C++20
 - Authors and roll numbers as listed above
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A low-poly rotating neural-network node cluster (react-three-fiber `InstancedMesh` spheres connected by `Line` segments) centered in the slide, Navy nodes (`#14213d`) with Coral accent edges (`#ff6b5b`).
+- **Animation:** GSAP `to()` tween auto-rotating the cluster 360° over 12 seconds, `repeat: -1`, `ease: "linear"`; individual nodes pulse scale with a staggered GSAP `fromTo()` (0.8 → 1.2 → 0.8) on load.
+- **Interaction:** `OrbitControls` disabled (auto-spin only); on click, nodes briefly flash Coral.
+- **React integration:** Wrap scene in `<Canvas>` with `shadowMap` enabled; ambient light (Cream) + directional light (Navy) from top-left.
+
 ### Connection to next slide
 Transition from the reveal to the "what problem are we solving" narrative: *"Before we look under the hood, let's define what CppTorch is and why it exists."*
 
@@ -87,6 +93,12 @@ Transition from the reveal to the "what problem are we solving" narrative: *"Bef
 - Full training loop: forward → backward → update, with mini-batching.
 - Educational by design: easy to read, easy to extend.
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** Four floating sharp-cornered 3D cards (`BoxGeometry` with `EdgesGeometry` stroked outlines) arranged in a shallow arc, each Navy (`#14213d`) with white Geist Mono feature labels; cards represent: Header-Only, OpenMP+OpenBLAS, Full Training Loop, Extensible.
+- **Animation:** GSAP `fromTo()` floating bobbing motion (y-axis ±0.3 units, 3s duration, `yoyo: true`, `repeat: -1`) staggered per card; on hover, card scales up 1.2× with Coral glow (`pointLight` intensity tween).
+- **Interaction:** Pointer events via `react-three-drei` `<HoverProvider>`; clicking a card highlights its Coral border (4px stroke) and fades others to 40% opacity.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 2, 6] }}`; `useFrame` for subtle drift; environment map in Cream tone.
+
 ### Connection to next slide
 *"These features don't appear by accident—they follow a strict design philosophy. Let's look at the rules that shaped the library."*
 
@@ -112,6 +124,12 @@ Transition from the reveal to the "what problem are we solving" narrative: *"Bef
 Card 1 — Header-Only: No ABI, just copy `include/cpptorch/`.  
 Card 2 — Extension Points: New activations/losses/optimizers via factories; `model.h` never touched.  
 Card 3 — Minimal Core: Matrix math + training loop only; no bloat.
+
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** Three tall sharp-cornered 3D pillars (`BoxGeometry` with `EdgesGeometry` stroked outlines), Navy (`#14213d`) with Coral (`#ff6b5b`) top caps, arranged left-to-right; each pillar labeled in Geist Mono: Header-Only, Extension Points, Minimal Core.
+- **Animation:** GSAP `from()` scale-in from 0 to 1 on load with `stagger: 0.2`, `ease: "back.out(1.7)"`; Coral caps pulse brightness with GSAP `to()` tween (`repeat: -1`, `yoyo: true`, 2s).
+- **Interaction:** Hovering a pillar expands its width slightly and shows a Coral tooltip (HTML overlay positioned via `useSpring` / CSS); clicking a pillar centers camera on it with GSAP `to()` camera position tween.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 3, 8] }}`; `useFrame` for slow auto-rotation (0.5°/frame); `useThree` for viewport-aware scaling.
 
 ### Connection to next slide
 *"Everything starts with the array primitive. Without a solid Matrix, there is no network. Let's examine the core."* (Transition to `Matrix` / `NumCpp`.)
@@ -144,6 +162,12 @@ Card 3 — Minimal Core: Matrix math + training loop only; no bloat.
 ```
 C[i][j] = Σ_k A[i][k] · B[k][j]
 ```
+
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A floating 3D matrix grid (`InstancedMesh` of small Navy boxes representing cells) showing two matrices A and B side by side, with connecting lines (`Line`) from row of A to column of B converging into a result cell in matrix C; Coral dots highlight active computation cells.
+- **Animation:** GSAP `to()` wave animation sweeping across matrix A cells (`stagger: 0.01`, `yoyo: true`, `repeat: -1`), each cell scaling up as the wave passes; connecting lines draw themselves with GSAP `drawSVG` style via `useFrame` progress tween.
+- **Interaction:** Clicking a cell isolates its row/column (others fade to 20% opacity); slider (HTML range input) adjusts matrix size and regenerates the `InstancedMesh` count.
+- **React integration:** `<Canvas>` with `camera={{ position: [6, 6, 6] }}` and `OrbitControls` enabled; `useFrame` for the wave phase offset; all geometry in Coral/Navy/Cream palette.
 
 ### Connection to next slide
 "*Arrays store data, but the real magic happens when those arrays are computed in parallel. Next: the engine that makes CppTorch fast.*"
@@ -184,6 +208,12 @@ C[i][j] = Σ_k A[i][k] · B[k][j]
 T_single / T_parallel ≈ 15×
 ```
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A 3D racing bar chart: two groups of sharp-cornered 3D bars (`BoxGeometry`), left group Navy (`#14213d`) labeled "Single-threaded", right group Coral (`#ff6b5b`) labeled "OpenMP + OpenBLAS"; bars represent operations (Matrix dot, ReLU, Full epoch), with height proportional to time (taller = slower).
+- **Animation:** GSAP timeline racing animation: all bars grow from 0 to their final height simultaneously, but Coral bars reach full height ~15× faster than Navy bars (staggered duration difference); a Coral "finish line" plane slams down when OpenMP bars complete.
+- **Interaction:** Hovering a bar shows a tooltip with exact ms value (HTML overlay); a toggle button switches between "Training epoch" and "Single operation" views, regenerating bar heights with GSAP scale transitions.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 4, 10] }}`; `useFrame` for subtle camera drift; `useThree` for responsive resize; Coral/Navy color-coded `MeshStandardMaterial`.
+
 ### Connection to next slide
 "*This is the engine under the hood. Now let's see how layers use it to transform data.*"
 
@@ -211,6 +241,12 @@ T_single / T_parallel ≈ 15×
 - `Layer_Dropout`: inverted dropout, scaled at train time.
 - `Layer_Wrapper`: bundles dense + optional dropout + activation.
 - Layers cache inputs for backward pass.
+
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A 3D neural network visualization: input layer (2 Navy spheres), two hidden layers (32 and 16 smaller spheres), output layer (1 Coral sphere); nodes connected by thin stroked lines (`Line` with `BufferGeometry`) representing weights; `MeshStandardMaterial` with Navy/Coral color coding per layer.
+- **Animation:** GSAP signal pulse animation: a bright Coral dot travels along edges from input to output using `MotionPathPlugin` on a `useFrame`-driven tween; nodes flash (scale 1→1.4→1) as the pulse passes through them; `repeat: -1`, `duration: 3`.
+- **Interaction:** Clicking a node highlights all connected edges (Coral glow) and fades unrelated nodes to 30% opacity; a dropdown (HTML) changes network depth and regenerates the node/edge layout with GSAP scale transitions.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 4, 12] }}`; `OrbitControls` enabled; `useFrame` for pulse phase; `react-three-drei` `<Text>` labels for layer names.
 
 ### Connection to next slide
 "*Layers transform data, but they need a goal. Activations shape the output; losses measure the error.*"
@@ -245,6 +281,12 @@ ReLU(x) = max(0, x)
 MSE = (1/n) Σ (y_pred - y_true)²
 ```
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** Two side-by-side 3D function graphs (`PlaneGeometry` with `MeshStandardMaterial` displacement): left graph shows ReLU (flat at 0 for x<0, linear ramp for x>0 in Navy), right graph shows MSE parabolic bowl (`z = (x-y)²` in Coral); both grids have stroked `EdgesGeometry` outlines.
+- **Animation:** GSAP `to()` tween animates the displacement height of the ReLU graph from flat to full slope on load (`stagger: 0.1`, `ease: "power2.out"`); the MSE bowl rotates slowly via `useFrame` (0.3°/frame around Y axis).
+- **Interaction:** A slider (HTML overlay) adjusts the ReLU alpha (leakiness) from 0 to 1, morphing the graph surface with GSAP scale transitions; clicking a point on the MSE bowl drops a Coral sphere marker showing the current loss value.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 4, 6] }}`; `useFrame` for bowl rotation; `useThree` for responsive resize; colors strictly Navy/Coral/Cream.
+
 ### Connection to next slide
 "*With predictions and a loss in hand, we need an optimizer to actually move the weights.*"
 
@@ -278,6 +320,12 @@ m = β₁·m + (1-β₁)·g        v = β₂·v + (1-β₂)·g²
 θ = θ - lr · m̂ / (√v̂ + ε)
 ```
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** Four floating 3D optimizer chips (`BoxGeometry` with `EdgesGeometry` stroked outlines), Navy (`#14213d`) with white Geist Mono labels: SGD, Adagrad, RMSprop, Adam; each chip has a Coral sphere "particle" orbiting it representing momentum accumulation.
+- **Animation:** GSAP `to()` animation moves each Coral particle in a distinct path: SGD (straight line), Adagrad (shrinking spiral), RMSprop (decaying sine wave), Adam (combined spiral+sine); particles loop with `repeat: -1`, staggered start delays.
+- **Interaction:** Clicking a chip freezes the other three particles and expands the selected chip's particle trail into a visible `TubeGeometry` path showing its full trajectory; HTML labels show the optimizer name and update rule.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 3, 8] }}`; `useFrame` for particle phase offsets; `react-three-drei` `<Text>` for labels; strict Navy/Coral palette.
+
 ### Connection to next slide
 "*Optimizers update parameters, but the Model orchestrates the entire epoch. Let's see the training loop.*"
 
@@ -306,6 +354,12 @@ m = β₁·m + (1-β₁)·g        v = β₂·v + (1-β₂)·g²
 - `EvaluationResult`: loss, accuracy, RMSE, `.display()`.
 - Fused softmax + cross-entropy path when applicable.
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A 3D cyclic training loop diagram: three sharp-cornered 3D pillars (`BoxGeometry` with `EdgesGeometry`) labeled Forward, Backward, Update in Geist Mono; a Coral sphere travels around the triangle connecting them via `CatmullRomCurve3` path; `MeshStandardMaterial` Navy pillars with Coral path line.
+- **Animation:** GSAP `to()` moves the sphere along the path (`duration: 4`, `repeat: -1`, `ease: "linear"`); each time the sphere reaches a pillar, the pillar flashes (scale 1→1.3→1) and emits a Coral particle burst via `useFrame`-driven `InstancedMesh` scale pulses.
+- **Interaction:** Clicking a pillar pauses the sphere and displays the step's description in an HTML overlay; clicking again resumes; speed slider adjusts GSAP `timeScale()`.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 5, 8] }}`; `OrbitControls` enabled; `useFrame` for particle emission; colors strictly Navy/Coral/Cream.
+
 ### Connection to next slide
 "*A model needs data to learn. CppTorch bundles several datasets and a scaler to prepare them.*"
 
@@ -331,6 +385,12 @@ m = β₁·m + (1-β₁)·g        v = β₂·v + (1-β₂)·g²
 - New: `Datasets::svm_data()` (x1, x2, label ±1) and `Datasets::load_navier_stokes()`.
 - `StandardScaler`: fit on training set, transform validation/test unchanged.
 - `Resources`: resolves CSV at runtime (set_dir, env var, compile definition, ./resources/).
+
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A 3D data pipeline: a Navy cylinder (raw dataset) on the left feeds into a Coral cube (`StandardScaler`) in the center, which outputs to a Navy plane (scaled train/test splits) on the right; small floating spheres represent individual data samples moving through the pipeline; `EdgesGeometry` stroked outlines on all solids.
+- **Animation:** GSAP `to()` moves sample spheres from cylinder → cube → plane in a staggered sequence (`stagger: 0.05`, `duration: 6`, `repeat: -1`); the Coral cube pulses (scale 1→1.2→1) when spheres pass through; spheres change color from Navy to Coral as they exit.
+- **Interaction:** Clicking the cylinder regenerates a new random set of sample spheres; clicking the cube toggles "fit mode" where the cube temporarily expands to encompass all spheres; HTML dropdown selects dataset type (spiral/housing/audio/SVM).
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 4, 10] }}`; `useFrame` for sample sphere bobbing; `react-three-drei` `<Text>` labels for each stage; strict Navy/Coral/Cream palette.
 
 ### Connection to next slide
 "*Enough theory—let's see CppTorch solve real problems: an SVM and a Navier-Stokes flow field.*"
@@ -360,6 +420,12 @@ m = β₁·m + (1-β₁)·g        v = β₂·v + (1-β₂)·g²
 - Navier-Stokes example loads `resources/ns2d_subset.csv`, time-ordered train/test split.
 - Reports per-field R², RMSE, MAE and PDE residual RMS comparing reference vs network.
 
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** Split 3D scene: left side shows a 2D scatter plot extruded into 3D (`InstancedMesh` cylinders, Navy/Coral based on SVM class ±1) with a floating 3D decision plane (`PlaneGeometry`, semi-transparent Coral) cutting through; right side shows a 3D fluid grid (`InstancedMesh` small cubes colored by vorticity magnitude) with flow lines (`Line` segments) representing velocity vectors.
+- **Animation:** GSAP `to()` animates the SVM decision plane rotating and translating to find the best split (`duration: 5`, `repeat: -1`, `yoyo: true`); the Navier-Stokes grid cells pulse color intensity with `useFrame`-driven color lerp based on a noise function; flow lines draw themselves progressively.
+- **Interaction:** Clicking the decision plane snaps it to the optimal position and highlights correctly classified spheres in Coral; dragging (OrbitControls) rotates both views independently; HTML metric badges update live as animations progress.
+- **React integration:** `<Canvas>` split via two `<canvas>` elements or a single `<Canvas>` with two `useRef` groups; `camera={{ position: [0, 3, 6] }}` for SVM side, `camera={{ position: [4, 4, 4] }}` for Navier-Stokes side; `useFrame` for animation loops; colors strictly Navy/Coral/Cream.
+
 ### Connection to next slide
 "*These examples work because the library is open for extension. Here's how you add your own component.*"
 
@@ -387,6 +453,12 @@ m = β₁·m + (1-β₁)·g        v = β₂·v + (1-β₂)·g²
 - Register in corresponding factory (`activation_registry.h`, etc.).
 - Export via `include/cpptorch/cpptorch.h`.
 - Golden rule: never modify `model.h` or `include/cpptorch/core/`.
+
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** Three sharp-cornered 3D floating steps (`BoxGeometry` with `EdgesGeometry` stroked outlines), Navy (`#14213d`) with Coral step numbers (1, 2, 3) floating above each; step labels in Geist Mono: "Create Header", "Register in Factory", "Export in cpptorch.h"; thin Coral stroked connector lines between steps.
+- **Animation:** GSAP `from()` scale-in from 0 on load with `stagger: 0.3`, `ease: "back.out(1.7)"`; Coral step numbers bounce with GSAP `to()` (`yoyo: true`, `repeat: -1`, 1.5s duration); connector lines draw themselves via `useFrame` progress tween.
+- **Interaction:** Clicking a step expands it to 2× size, fades others to 30% opacity, and shows the corresponding code snippet in an HTML overlay; a "Reset" button returns all steps to original size with GSAP scale transition.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 3, 8] }}`; `useFrame` for gentle float animation; `react-three-drei` `<Text>` for labels; strict Navy/Coral/Cream palette.
 
 ### Connection to next slide
 "*That completes the tour. Thank you for exploring CppTorch with us.*"
@@ -416,6 +488,16 @@ m = β₁·m + (1-β₁)·g        v = β₂·v + (1-β₂)·g²
 ### Details to include
 - Authors and roll numbers as listed above.
 - Closing invitation for questions.
+
+### 3D Interactive Elements (Three.js + GSAP + React)
+- **Object:** A central floating 3D CppTorch logo mark: interconnected Navy spheres (nodes) connected by Coral stroked lines forming a neural network node cluster in the center; three smaller orbiting rings around it representing Taher, Kashif, and Yahya; `EdgesGeometry` stroked outlines on all geometry.
+- **Animation:** GSAP `to()` auto-rotates the central cluster 360° over 10 seconds (`repeat: -1`, `ease: "linear"`); the three orbiting rings rotate at different speeds via `useFrame`; nodes pulse scale with staggered GSAP `fromTo()` (0.9→1.3→0.9) on load.
+- **Interaction:** Clicking the cluster triggers a Coral particle explosion (`InstancedMesh` of small spheres expanding outward); hovering any orbiting ring highlights the corresponding author name in an HTML overlay; the repository link glows Coral on hover.
+- **React integration:** `<Canvas>` with `camera={{ position: [0, 0, 7] }}`; `OrbitControls` disabled (controlled auto-rotation); `useFrame` for ring orbits and pulse phases; ambient light (Cream) + directional light (Navy) for soft depth; strict Navy/Coral/Cream palette.
+
+### Connection to next slide
+None — this is the final slide. End the presentation here or loop back to Slide 1.
+
 
 ---
 
